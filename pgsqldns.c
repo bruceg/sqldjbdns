@@ -13,10 +13,15 @@ extern char* fatal;
 static PGconn* pgsql;
 static PGresult* sql_result = 0;
 
+#ifdef SQL_LOG
+#include <stdio.h>
+#endif
+
 void sql_exec(char* q)
 {
   ExecStatusType status;
-#if 0
+#ifdef SQL_LOG
+  PQprintOpt opt = { 1, 1, 0, 0, 0, 0, "|", 0, 0, 0 };
   buffer_puts(buffer_1, q);
   buffer_putsflush(buffer_1, "\n");
 #endif
@@ -27,6 +32,12 @@ void sql_exec(char* q)
   if(status != PGRES_TUPLES_OK && status != PGRES_COMMAND_OK)
     strerr_die3x(111,fatal,"Fatal PostgreSQL error: ",
 		 PQresultErrorMessage(sql_result));
+#ifdef SQL_LOG
+  if(status == PGRES_TUPLES_OK) {
+    PQprint(stdout, sql_result, &opt);
+    fflush(stdout);
+  }
+#endif
 }
 
 void sql_connect(void)
