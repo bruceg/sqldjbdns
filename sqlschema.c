@@ -150,8 +150,7 @@ unsigned sql_select_entries(unsigned long domain, stralloc* prefixes)
   if(!stralloc_catulong0(&sql_query, domain, 0)) return 0;
   if(!stralloc_cats(&sql_query, " AND (")) return 0;
   if(!stralloc_cat_prefixes(&sql_query, prefixes)) return 0;
-  if(!stralloc_append(&sql_query, ")")) return 0;
-  if(!stralloc_0(&sql_query)) return 0;
+  if(!stralloc_catb(&sql_query, ")", 2)) return 0;
   sql_exec(sql_query.s);
 
   tuples = sql_ntuples();
