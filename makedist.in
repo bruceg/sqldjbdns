@@ -1,5 +1,3 @@
-# Template makedist.in file
-
 # Set PKGURL to the full base URL for the package web site (required).
 PKGURL=http://em.ca/~bruceg/sqldjbdns/
 
@@ -50,7 +48,7 @@ WEBDIR=www/sqldjbdns
 RPMUPLOAD=incoming.redhat.com/libc6
 
 # Set LIST to the mailing list(s) to send the announcement to (required).
-LIST="bgware@lists.em.ca dns@list.cr.yp.to"
+LIST="bgware@lists.em.ca dns@list.cr.yp.to pgsql-announce@postgresql.org"
 
 # Run any extra commands to prepare the source tree (such as making
 # documentation) here.

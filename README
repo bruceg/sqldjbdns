@@ -2,18 +2,16 @@ sqldjbdns
 SQL DNS server based on djbdns
 Bruce Guenter <bruceg@em.ca>
 Version 0.70
-2000-11-15
+2000-11-16
 
-Sqldjbdns is a new authoritative DNS server that pulls its data directly
-from a set of SQL tables.  It supports fully dynamic A, MX, and PTR
-records, and static NS and SOA records (run-time configurable).
+Sqldjbdns is an authoritative DNS server that pulls its data directly
+from a set of SQL tables.  It supports fully dynamic A, MX, TXT, and PTR
+records, and run-time configurable static NS and SOA records.  It also
+supports schedule expiry and introduction of records.
 
-This package is in a very preliminary state.  No configuration program
-has been included, and the documentation is minimal.  At the moment,
-only PostgreSQL is supported, but support for other SQL standard
-databases and different table schemas would be fairly easy to add.
-There is no configuration tool, and the RPM does not install in a
-ready-to-run form.
+At the moment, only PostgreSQL is supported, but support for other SQL
+standard databases and different table schemas should be fairly easy to
+add.  The RPM does not install in a ready-to-run form.
 
 To build the package, you need to unpack and build the djbdns-1.02
 package inside the build directory of sqldjbdns by downloading the
