@@ -33,6 +33,7 @@ static struct nameserver nameservers[10];
 
 #define DEFAULT_NS_NAME_TTL 65536
 #define DEFAULT_NS_IP_TTL 65536
+#define DEFAULT_TTL 86400
 
 static unsigned long ns_name_ttl;
 static unsigned long ns_ip_ttl;
@@ -150,7 +151,10 @@ void initialize(void)
     strerr_die2x(111,fatal,"Could not create initial SOA mailbox string");
 }
 
-static int qualified(unsigned char* s) { return s[s[0]+1]; }
+static int qualified(unsigned char* s)
+{
+  return s[0] && s[s[0]+1];
+}
 
 static int stralloc_cat_domain(stralloc* s, stralloc* domain)
 {
@@ -302,10 +306,11 @@ static int lookup_NS;
 static int lookup_PTR;
 static int lookup_SOA;
 
+static unsigned tuples;
+
 static int query_forward(char* q)
 {
   unsigned row;
-  unsigned tuples;
   char* domain;
   sql_record* rec;
   
@@ -342,6 +347,8 @@ static int query_forward(char* q)
 	}
       }
     }
+    else if(!rec->ttl)
+      rec->ttl = DEFAULT_TTL;
   }
   
   if(lookup_A) {
@@ -355,7 +362,8 @@ static int query_forward(char* q)
     for(row = 0; row < tuples; row++) {
       rec = sql_records + (row + random_offset) % tuples;
       if(rec->type == DNS_NUM_MX) {
-	if(!dns_domain_join(&rec->name, &domain_name)) return 0;
+	if(!qualified(rec->name.s))
+	  if(!dns_domain_join(&rec->name, &domain_name)) return 0;
 	if(!response_MX(q, rec->ttl, rec->distance, rec->name.s)) return 0;
 	/* If the domain of the added name matches the current domain,
 	 * add an additional A record */
@@ -425,10 +433,13 @@ int respond_additional(void)
 {
   unsigned i;
   if(additional.len) {
-    unsigned tuples = sql_select_entries(domain_id, &additional);
-    unsigned row;
-    for(row = 0; row < tuples; row++) {
-      sql_record* rec = &sql_records[row];
+    /* Optimization: Don't do an additional SQL query if
+     * the additional record is exactly the same as the original query */
+    if(additional.len != domain_prefix.len ||
+       byte_diff(additional.s, domain_prefix.len, domain_prefix))
+       tuples = sql_select_entries(domain_id, &additional);
+    for(i = 0; i < tuples; i++) {
+      sql_record* rec = &sql_records[i];
       if(rec->type == DNS_NUM_A) {
 	if(!dns_domain_join(&rec->prefix, &domain_name)) return 0;
 	if(!response_A(rec->prefix.s,rec->ttl,rec->ip,1)) return 0;
