@@ -1,0 +1,128 @@
+<html>
+<body>
+<h1>The Dynamic Host Update Protocol (DHUP) Version 1</h1>
+
+<ol>
+<h2><li>Introduction</li></h2>
+
+<p>The Dynamic Host Update Protocol is a means for providing Internet
+hosts with non-fixed addresses a simple method of updating their
+current address with a dynamic DNS server.</p>
+
+<h2><li>Protocol</li></h2>
+
+<p>A DHUP client connects to a DHUP server, as discussed in
+"Encapsulation", over an unreliable datagram protocol allowing
+transmission of 8-bit bytes.</p>
+
+<p>The client sends a single update datagram to the server and waits
+for a response from the server.  If no response is received after (?)
+seconds, the client resends will double the timeout duration and
+repeat the above process.  The server will respond with a datagram
+indicating if the update succeded, unless the server cannot build a
+response from the incoming data, in which case the request is dropped
+with no response.</p>
+
+<p>The datagram is composed of a list of strings, seperated by a
+single NUL (ASCII 0) byte.  There is no trailing NUL byte following
+the last string.</p>
+
+<p>The update datagram contains the following strings (in order):
+
+<ol>
+<li>Protocol signature</li>
+<li>Sequence number</li>
+<li>Domain name</li>
+<li>New IP address</li>
+<li>New MX name</li>
+<li>Secondary MX flag</li>
+<li>Pass phrase</li>
+</ol>
+
+The protocol signature must always be "<tt>DHUP-1</tt>".  The sequence
+is a unique increasing integer identifying the query.  The domain name
+identifies which domain to update, as well as which identity the
+authentication data should be compared against.  The new IP address
+and MX name are the new values to be stored in the server.  The IP
+address must be expressed in standard dotted-decimal notation.  If the
+MX name is blank, no MX records are stored on the server.  The
+secondary MX flag is an integer that, if set to non-zero, indicates
+that the new MX name is to be used as a secondary MX, with the primary
+MX being the domain name.  The pass phrase is a copy of a secret ASCII
+phrase shared between the client and server.</p>
+
+<p>The sequence number is used to determine if the request is a new
+one or has already been received by the server.  After authentication,
+if the sequence number is less than the sequence number of the last
+update accepted by the server, the update is rejected.  If the
+sequence number is the same as the sequence number of the last update
+accepted by the server, the update is accepted without being
+processed.  Otherwise, the update is processed and the sequence number
+is stored on the server.  A convenient value for the sequence number
+is the local UNIX epoch time value.</p>
+
+<p>The response datagram contains the following strings (in order):
+
+<ol>
+<li>Response signature</li>
+<li>Sequence number</li>
+<li>Response code</li>
+<li>Textual message</li>
+</ol>
+
+The response signature must always be "<tt>DHUPR-1</tt>"
+The sequence number is copied from the request datagram.
+Response codes are listed below.
+The textual message is informational in nature and is only to be used
+to provide more detail to the user of the client.</p>
+
+<h2><li>Response Codes</li></h2>
+
+<p>Response codes are grouped into the following groups:
+
+<ul>
+<li>2xx Update was accepted
+<li>4xx Client error
+<li>5xx Server error
+</ul>
+
+The following specific response codes are defined:
+
+<ul>
+<li>201: No errors encountered, DNS data was updated.</li>
+<li>202: DNS data was previously updated.</li>
+<li>401: Data format error.</li>
+<li>402: Authentication failed.</li>
+<li>403: Old sequence number.</li>
+<li>501: Database update failed.</li>
+</ul>
+
+</p>
+
+<h2><li>Encapsulation</li></h2>
+
+DHUP may be used on top of UDP. A DHUP-over-UDP server listens for
+connections on port 941.
+
+<h2><li>Security Considerations</li></h2>
+
+<p>All authentication data is sent in the clear with this protocol.
+It is therefore possible for an attacker to capture a single update
+packet and use it to forge new updates.</p>
+
+<p>A future version (2) of this protocol will use the digital
+signature algorithm (DSA) to sign the contents of the datagram with
+the client's private key, which can be verified against the client's
+public key stored on the server.  Version 1 is intended primarily as a
+proof-of-concept test platform.</p>
+
+<p>The sequence number has been inserted for two reasons.  First,
+since the underlying protocol is inherently unreliable, it must be
+possible to process duplicate requests with a minimum of effort.
+Second, with version 2 of this protocol, the sequence number will be
+used to prevent replay attacks.</p>
+
+</ol>
+
+</body>
+</html>

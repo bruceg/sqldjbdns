@@ -1,0 +1,27 @@
+<html>
+<body>
+<h1>The DHUP SQL Schema</h1>
+
+<p>The DHUP server makes use of one new table, <tt>owner</tt>:
+
+<ul>
+<li>id INT NOT NULL PRIMARY KEY
+<li>password TEXT
+</ul>
+
+It also extends the <tt>domain</tt> table as described in the <a
+href="sqldns-schema.html">pgsqldns SQL Schema</a> to contain the
+following:
+
+<ul>
+<li>id INT NOT NULL PRIMARY KEY
+<li>name TEXT NOT NULL
+<li>owner INT NOT NULL REFERENCES owner(id)
+<li>last_sequence INT
+</ul></p>
+
+<p>These tables may contain any additional fields.  It is recommended
+to index on <tt>domain(name)</tt> for maximum performance.</p>
+
+</body>
+</html>
