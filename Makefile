@@ -1,3 +1,6 @@
+PACKAGE = sqldjbdns
+VERSION = 0.50
+
 CC = gcc
 CFLAGS = -O2 -W -Wall -Idjbdns-1.02 -g
 
