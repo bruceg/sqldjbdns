@@ -2,7 +2,7 @@
 #include "stralloc.h"
 #include "strerr.h"
 #include <pgsql/libpq-fe.h>
-#include "sql.h"
+#include "sqldns.h"
 
 extern char* fatal;
 

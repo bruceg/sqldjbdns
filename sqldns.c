@@ -9,7 +9,7 @@
 #include "str.h"
 #include "strerr.h"
 #include <time.h>
-#include "sql.h"
+#include "sqldns.h"
 
 char *fatal = "pgsqldns: fatal: ";
 
