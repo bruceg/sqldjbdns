@@ -7,6 +7,7 @@ Changes in version 0.70
 
 - Changed default TTL for NS records to three days.
 
-- Removed random ordering functionality, since it was not truely random:
-  it would tend to put the first record first more often than not.
+- Added a pgsqldns-conf program.
+
+- Improved the random ordering functionality to remove ordering bias.
 -------------------------------------------------------------------------------
