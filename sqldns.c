@@ -247,14 +247,19 @@ static int query_domain(char* q)
   return 1;
 }
 
+static int sent_NS;
+
 static int respond_nameservers(int authority)
 {
   unsigned i;
-  for(i = 0; i < nameserver_count; i++)
-    if(!response_NS(domain_name.s,
-		    nameservers[i].name_ttl,
-		    nameservers[i].name, authority))
-      return 0;
+  if(!sent_NS) {
+    for(i = 0; i < nameserver_count; i++)
+      if(!response_NS(domain_name.s,
+		      nameservers[i].name_ttl,
+		      nameservers[i].name, authority))
+	return 0;
+  }
+  sent_NS = 1;
   return 1;
 }
 
@@ -263,7 +268,6 @@ static int lookup_MX;
 static int lookup_NS;
 static int lookup_PTR;
 static int lookup_SOA;
-static int sent_NS;
 
 static int query_forward(char* q)
 {
@@ -271,37 +275,38 @@ static int query_forward(char* q)
   unsigned tuples;
   char* domain;
   
-  tuples = sql_select_entries(domain_id, &domain_prefix,
-			      lookup_A, lookup_MX);
+  tuples = sql_select_entries(domain_id, &domain_prefix);
   if(!tuples) {
     response_nxdomain();
     return 1;
   }
 
   if(domain_prefix.len == 1) {
-    if(lookup_SOA && !response_SOA(0)) return 0;
-    if(lookup_NS) {
+    if(lookup_SOA)
+      if(!response_SOA(0)) return 0;
+    if(lookup_NS)
       if(!respond_nameservers(0)) return 0;
-      sent_NS = 1;
-    }
   }
 
   for(row = 0; row < tuples; row++) {
     sql_record* rec = sql_records + row;
     switch(rec->type) {
     case DNS_NUM_A:
-      if(!response_A(q, rec->ttl, rec->ip, 0)) return 0;
+      if(lookup_A)
+	if(!response_A(q, rec->ttl, rec->ip, 0)) return 0;
       break;
     case DNS_NUM_MX:
-      if(!dns_domain_join(&rec->name, &domain_name)) return 0;
-      if(!response_MX(q, rec->ttl, rec->distance, rec->name.s)) return 0;
-      /* If the domain of the added name matches the current domain,
-       * add an additional A record */
-      domain = dns_domain_suffix(dns_name.s, domain_name.s);
-      if(domain) {
-	if(!stralloc_catb(&additional, dns_name.s, domain-dns_name.s))
-	  return 0;
-	if(!stralloc_0(&additional)) return 0;
+      if(lookup_MX) {
+	if(!dns_domain_join(&rec->name, &domain_name)) return 0;
+	if(!response_MX(q, rec->ttl, rec->distance, rec->name.s)) return 0;
+	/* If the domain of the added name matches the current domain,
+	 * add an additional A record */
+	domain = dns_domain_suffix(rec->name.s, domain_name.s);
+	if(domain) {
+	  if(!stralloc_catb(&additional, rec->name.s, domain-rec->name.s))
+	    return 0;
+	  if(!stralloc_0(&additional)) return 0;
+	}
       }
       break;
     }
@@ -338,9 +343,12 @@ static int query_reverse(unsigned char* q)
    *   else:
    *     produce a NXDOMAIN response */
   if(parts < 4 || byte_diff(ptr, sizeof in_addr_arpa, in_addr_arpa)) {
-    if(domain_prefix.len == 1)
-      return response_SOA(1);
-    response_nxdomain();
+    if(domain_prefix.len == 1) {
+      if(!response_SOA(0)) return 0;
+      if(!respond_nameservers(0)) return 0;
+    }
+    else
+      response_nxdomain();
     return 1;
   }
 
@@ -353,13 +361,13 @@ static int query_reverse(unsigned char* q)
 
   rec = &sql_records[0];
   if(!response_PTR(q, rec->ttl, rec->name.s)) return 0;
+
   return 1;
 }
 
 static int respond_authorities(void)
 {
-  if(!sent_NS &&
-     !respond_nameservers(1))
+  if(!respond_nameservers(1))
     return 0;
   return 1;
 }
@@ -368,12 +376,14 @@ int respond_additional(void)
 {
   unsigned i;
   if(additional.len) {
-    unsigned tuples = sql_select_entries(domain_id, &additional, 1, 0);
+    unsigned tuples = sql_select_entries(domain_id, &additional);
     unsigned row;
     for(row = 0; row < tuples; row++) {
       sql_record* rec = &sql_records[row];
-      if(!dns_domain_join(&rec->prefix, &domain_name)) return 0;
-      if(!response_A(rec->prefix.s,rec->ttl,rec->ip,1)) return 0;
+      if(rec->type == DNS_NUM_A) {
+	if(!dns_domain_join(&rec->prefix, &domain_name)) return 0;
+	if(!response_A(rec->prefix.s,rec->ttl,rec->ip,1)) return 0;
+      }
     }
   }
   for(i = 0; i < nameserver_count; i++)
@@ -422,8 +432,12 @@ int respond(char *q, unsigned char qtype[2] /*, char srcip[4] */)
     if(!query_forward(q)) return 0;
   }
   
-  if(!records)
-    return response_SOA(1);
-  else
-    return respond_authorities() && respond_additional();
+  if(!records) {
+    if(!response_SOA(1)) return 0;
+  }
+  else {
+    if(!respond_authorities()) return 0;
+    if(!respond_additional()) return 0;
+  }
+  return 1;
 }

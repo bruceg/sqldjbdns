@@ -22,10 +22,15 @@ typedef struct sql_record sql_record;
 #define SQL_RECORD_MAX 256
 extern sql_record sql_records[SQL_RECORD_MAX];
 
+/* Defined by the low-level SQL module */
 void sql_connect(void);
+void sql_exec(char* q);
+unsigned sql_fetch(unsigned row, unsigned col, char** result);
+unsigned sql_ntuples(void);
+
+/* Defined by the SQL schema module */
 int sql_select_domain(char* domain, unsigned long* id, char** name);
-unsigned sql_select_entries(unsigned long domain, stralloc* prefixes,
-			    int lookup_A, int lookup_MX);
+unsigned sql_select_entries(unsigned long domain, stralloc* prefixes);
 unsigned sql_select_ip4(char ip[4]);
 
 #endif
