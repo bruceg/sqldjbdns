@@ -9,8 +9,8 @@
 #define DNS_NUM_TXT 16
 #define DNS_NUM_ANY 255
 
-#include "cdb.h"
-#include "stralloc.h"
+#include "djbdns/cdb.h"
+#include "djbdns/stralloc.h"
 #include <sys/time.h>
 
 struct sql_record 
