@@ -298,6 +298,31 @@ static int query_domain(char* q)
 
 static int sent_NS;
 
+static int cmp_records(const sql_record* a, const sql_record* b)
+{
+  int c = a->type - b->type;
+  if(!c)
+    c = dns_random(3) - 1;
+  return c;
+}
+
+static void sort_sql_records(unsigned count)
+{
+  unsigned i;
+  for(i = 0; i < count-1; i++) {
+    sql_record* jmax = sql_records + i;
+    unsigned j;
+    for(j = i+1; j < count; j++)
+      if(cmp_records(sql_records+j, jmax) < 0)
+	jmax = sql_records+j;
+    if(jmax != sql_records+i) {
+      sql_record tmp = sql_records[i];
+      sql_records[i] = *jmax;
+      *jmax = tmp;
+    }
+  }
+}
+
 static int respond_nameservers(int authority)
 {
   unsigned i;
@@ -332,6 +357,7 @@ static int query_forward(char* q)
     return 1;
   }
 
+  sort_sql_records(tuples);
   if(domain_prefix.len == 1) {
     if(lookup_SOA)
       if(!response_SOA(0)) return 0;
@@ -363,36 +389,26 @@ static int query_forward(char* q)
       rec->ttl = DEFAULT_TTL;
   }
   
-  if(lookup_A) {
-    for(row = 0, rec = sql_records; row < tuples; row++, rec++) {
-      if(rec->type == DNS_NUM_A)
-	if(!response_A(q, rec->ttl, rec->ip, 0)) return 0;
-    }
-  }
-  if(lookup_MX) {
-    for(row = 0, rec = sql_records; row < tuples; row++, rec++) {
-      if(rec->type == DNS_NUM_MX) {
-	if(!name_to_dns(&scratch, rec->name.s, 0)) return 0;
-	if(!qualified(scratch.s))
-	  if(!dns_domain_join(&scratch, &domain_name)) return 0;
-	if(!response_MX(q, rec->ttl, rec->distance, scratch.s)) return 0;
-	/* If the domain of the added name matches the current domain,
-	 * add an additional A record */
-	domain = dns_domain_suffix(scratch.s, domain_name.s);
-	if(domain) {
-	  if(!stralloc_catb(&additional, scratch.s, domain-scratch.s))
-	    return 0;
-	  if(!stralloc_0(&additional)) return 0;
-	}
+  for(row = 0, rec = sql_records; row < tuples; row++, rec++) {
+    if(lookup_A && rec->type == DNS_NUM_A)
+      if(!response_A(q, rec->ttl, rec->ip, 0)) return 0;
+    if(lookup_MX && rec->type == DNS_NUM_MX) {
+      if(!name_to_dns(&scratch, rec->name.s, 0)) return 0;
+      if(!qualified(scratch.s))
+	if(!dns_domain_join(&scratch, &domain_name)) return 0;
+      if(!response_MX(q, rec->ttl, rec->distance, scratch.s)) return 0;
+      /* If the domain of the added name matches the current domain,
+       * add an additional A record */
+      domain = dns_domain_suffix(scratch.s, domain_name.s);
+      if(domain) {
+	if(!stralloc_catb(&additional, scratch.s, domain-scratch.s))
+	  return 0;
+	if(!stralloc_0(&additional)) return 0;
       }
     }
-  }
-  if(lookup_TXT) {
-    for(row = 0, rec = sql_records; row < tuples; row++, rec++) {
-      if(rec->type == DNS_NUM_TXT) {
-	if(!name_to_dns(&scratch, rec->name.s, 1)) return 0;
-	if(!response_TXT(q, rec->ttl, scratch.s)) return 0;
-      }
+    if(lookup_TXT && rec->type == DNS_NUM_TXT) {
+      if(!name_to_dns(&scratch, rec->name.s, 1)) return 0;
+      if(!response_TXT(q, rec->ttl, scratch.s)) return 0;
     }
   }
   return 1;
@@ -475,7 +491,10 @@ static int respond_additional(void)
 
 int respond(char *q, unsigned char qtype[2] /*, char srcip[4] */)
 {
+  char seed[128];
+
   gettimeofday(&now, 0);
+  dns_random_init(seed);
   
   lookup_A=lookup_MX=lookup_NS=lookup_PTR=lookup_SOA=lookup_TXT=sent_NS=0;
   
