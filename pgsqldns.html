@@ -1,0 +1,48 @@
+<html>
+<body>
+<h1>The pgsqldns program</h1>
+<tt>pgsqldns</tt> is a DNS server.
+It accepts iterative DNS queries
+from hosts around the Internet,
+and responds with locally configured information.
+<h2>Configuration</h2>
+Normally <tt>pgsqldns</tt> would be set up by the
+<a href="pgsqldns-conf.html"><tt>pgsqldns-conf</tt></a> program, but
+that program doesn't exist yet.
+<p>
+<tt>pgsqldns</tt> runs chrooted in the directory
+specified by the <tt>$ROOT</tt> environment variable,
+under the uid and gid
+specified by the <tt>$UID</tt> and <tt>$GID</tt> environment variables.
+<p>
+<tt>pgsqldns</tt> listens for incoming UDP packets
+addressed to port 53 of <tt>$IP</tt>.
+It does not listen for TCP queries.
+<p>
+<tt>pgsqldns</tt> connects to a PostgreSQL server as specified by
+<tt>$PGHOST</tt>, <tt>$PGPORT</tt>, <tt>$PGUSERNAME</tt>,
+<tt>$PGPASSWORD</tt>, and <tt>$PGDATABASE</tt>.
+After connecting, it executes any commands found in <tt>$SQLSETUP</tt>.
+</p>
+<tt>pgsqldns</tt> answers queries as specified in the PostgreSQL tables.
+It loads in the nameserver names and IPs from <tt>NS0</tt> through
+<tt>NS9</tt>.
+Each such nameserver must consist of a fully qualified domain name, a
+colon, and its IP.
+<h2>Further details</h2>
+<tt>pgsqldns</tt> rejects
+zone-transfer requests,
+inverse queries, non-Internet-class queries, truncated packets, and
+packets that contain anything other than a single query.
+<p>
+<tt>pgsqldns</tt>, like BIND,
+includes NS records with answers to most queries.
+This increases DNS packet sizes,
+but it draws queries away from parent servers,
+and reduces the frequency of long DNS delays.
+With the default cache times,
+a client that uses a normal record at least once every day
+will always have the corresponding NS records cached
+and will never have to talk to parent servers.
+</body>
+</html>

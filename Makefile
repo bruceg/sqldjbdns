@@ -1,34 +1,43 @@
 PACKAGE = sqldjbdns
 VERSION = 0.50
 
+djbdns = djbdns-1.02
+
 CC = gcc
-CFLAGS = -O2 -W -Wall -Idjbdns-1.02 -g
+CFLAGS = -O2 -W -Wall -I$(djbdns) -g
+install = /usr/bin/install
+
+install_prefix =
+prefix = /usr
+bindir = $(install_prefix)$(prefix)/bin
 
 PROGS = pgsqldns dnsbench
 
 default: $(PROGS)
 
-patch:
-	cd djbdns-1.02 && rm -fv `cat TARGETS` *.orig *~
-	diff -urN djbdns-1.02-orig djbdns-1.02 | \
-	grep -v '^Binary files .* differ$$' >diff
-
-pgsqldns: pgsqldns.o sqldns.o sqlschema.o
-	cd djbdns-1.02 && ./load ../pgsqldns ../sqldns.o ../sqlschema.o \
+pgsqldns: pgsqldns.o sqldns.o sqlschema.o $(djbdns)/dns.a
+	cd $(djbdns) && ./load ../pgsqldns ../sqldns.o ../sqlschema.o \
 		server.o response.o droproot.o qlog.o prot.o dd.o dns.a \
 		env.a cdb.a alloc.a buffer.a unix.a byte.a libtai.a \
 		`cat socket.lib` -lpq
 	size pgsqldns
 
-dnsbench: dnsbench.o
-	cd djbdns-1.02 && ./load ../dnsbench dns.a env.a \
+dnsbench: dnsbench.o $(djbdns)/dns.a
+	cd $(djbdns) && ./load ../dnsbench dns.a env.a \
 		alloc.a unix.a byte.a iopause.o \
 		libtai.a `cat socket.lib`
 
+install: $(PROGS)
+	$(install) -d $(bindir)
+	$(install) $(PROGS) $(bindir)
+
 dnsbench.o: dnsbench.c Makefile
-pgsqldns.o: pgsqldns.c sqldns.h Makefile
-sqldns.o: sqldns.c sqldns.h Makefile
-sqlschema.o: sqlschema.c sqldns.h Makefile
+pgsqldns.o: pgsqldns.c sqldns.h $(djbdns)/uint64.h Makefile
+sqldns.o: sqldns.c sqldns.h $(djbdns)/uint64.h Makefile
+sqlschema.o: sqlschema.c sqldns.h $(djbdns)/uint64.h Makefile
+
+$(djbdns)/dns.a $(djbdns)/uint64.h: $(djbdns)
+	$(MAKE) -C $(djbdns)
 
 clean:
 	$(RM) *.o $(PROGS)

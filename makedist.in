@@ -32,7 +32,7 @@ EXTRAS_VER="ANNOUNCEMENT"
 
 # Set EXTRAS_DIST to a list of other extra files that should go into the
 # distribution tarball.
-EXTRAS_DIST=
+EXTRAS_DIST="*.html"
 
 # Set VERSION_BASE to the subdirectory into which the version-numbered
 # will be placed.

@@ -1,0 +1,28 @@
+sqldjbdns
+SQL DNS server based on djbdns
+Bruce Guenter <bruceg@em.ca>
+Version 0.50
+2000-11-07
+
+Sqldjbdns is a new authoritative DNS server that pulls its data directly
+from a set of SQL tables.  It supports fully dynamic A, MX, and PTR
+records, and static NS and SOA records.
+
+This package is in a very preliminary state.  No configuration program
+has been included, and the documentation is minimal.  At the moment,
+only PostgreSQL is supported, but support for other SQL standard
+databases and different table schemas would be fairly easy to add.
+
+A mailing list has been set up to discuss this package.  To subscribe,
+send an email to:
+	bgware-subscribe@lists.em.ca
+
+Development versions of sqldjbdns are available via anonymous CVS.
+Set your CVSROOT to ":pserver:cvs@bruce-guenter.dyndns.org:/CVS",
+login with an empty password, and check out the sqldjbdns module.
+
+This program is Copyright(C) 2000 Bruce Guenter, and may be copied
+according to the GNU GENERAL PUBLIC LICENSE (GPL) Version 2 or a later
+version.  A copy of this license is included with this package.  This
+package comes with no warranty of any kind.
+
