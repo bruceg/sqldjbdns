@@ -15,13 +15,12 @@
 sql_record sql_records[SQL_RECORD_MAX];
 
 char *fatal = "pgsqldns: fatal: ";
+char *warning = "pgsqldns: warning: ";
 
 struct nameserver
 {
   stralloc name;
   char ip[4];
-  unsigned long name_ttl;
-  unsigned long ip_ttl;
 };
 
 static char in_addr_arpa[] = "\7in-addr\4arpa";
@@ -32,8 +31,28 @@ static struct timeval now;
 static unsigned nameserver_count;
 static struct nameserver nameservers[10];
 
-#define DEFAULT_NS_NAME_TTL 86400
-#define DEFAULT_NS_IP_TTL 86400
+#define DEFAULT_NS_NAME_TTL 65536
+#define DEFAULT_NS_IP_TTL 65536
+
+static unsigned long ns_name_ttl;
+static unsigned long ns_ip_ttl;
+
+#define DEFAULT_SOA_TTL     2560
+#define DEFAULT_SOA_REFRESH 4096
+#define DEFAULT_SOA_RETRY   256
+#define DEFAULT_SOA_EXPIRE  65536
+#define DEFAULT_SOA_MINIMUM 2560
+#define DEFAULT_SOA_MAILBOX "hostmaster"
+
+#define MAX_DYNAMIC_TTL 3600
+#define MIN_DYNAMIC_TTL 2
+
+static unsigned long soa_ttl;
+static unsigned long soa_refresh;
+static unsigned long soa_retry;
+static unsigned long soa_expire;
+static unsigned long soa_minimum;
+static stralloc soa_mailbox;
 
 static unsigned long domain_id;
 static stralloc domain_name;
@@ -64,8 +83,6 @@ int name_to_dns(stralloc* dns, char* name)
 static int parse_nameserver(unsigned ns, char* env)
 {
   unsigned len;
-  unsigned long name_ttl = DEFAULT_NS_NAME_TTL;
-  unsigned long ip_ttl = DEFAULT_NS_IP_TTL;
   struct nameserver* nsptr = nameservers+ns;
   
   len = str_chr(env, ':');
@@ -76,8 +93,6 @@ static int parse_nameserver(unsigned ns, char* env)
   if(!(len = ip4_scan(env, nsptr->ip))) return 0;
   env += len;
   if(*env) return 0;
-  nsptr->name_ttl = name_ttl;
-  nsptr->ip_ttl = ip_ttl;
   return 1;
 }
 
@@ -100,15 +115,48 @@ static void parse_nameservers(void)
     strerr_die2x(111,fatal,"No nameservers were parsed");
   nameserver_count = j;
 }
-  
+
+void env_get_ulong(char* env, unsigned long* out, unsigned long dflt)
+{
+  char* tmp = env_get(env);
+  if(!tmp) return;
+  if(!scan_ulong(tmp, out)) {
+    strerr_warn4(warning, "Could not parse $", env, ", ignoring.", 0);
+    *out = dflt;
+  }
+}
+
+#define getenvulong(env,var,default)  
 void initialize(void)
 {
+  char* env;
 #if 0
   char seed[128];
   dns_random_init(seed);
 #endif
   parse_nameservers();
   sql_connect();
+  env_get_ulong("NS_IP_TTL",   &ns_ip_ttl,   DEFAULT_NS_IP_TTL);
+  env_get_ulong("NS_NAME_TTL", &ns_name_ttl, DEFAULT_NS_NAME_TTL);
+  env_get_ulong("SOA_TTL",     &soa_ttl,     DEFAULT_SOA_TTL);
+  env_get_ulong("SOA_REFRESH", &soa_refresh, DEFAULT_SOA_REFRESH);
+  env_get_ulong("SOA_RETRY",   &soa_retry,   DEFAULT_SOA_RETRY);
+  env_get_ulong("SOA_EXPIRE",  &soa_expire,  DEFAULT_SOA_EXPIRE);
+  env_get_ulong("SOA_MINIMUM", &soa_minimum, DEFAULT_SOA_MINIMUM);
+  env = env_get("SOA_MAILBOX");
+  if(!env)
+    env = DEFAULT_SOA_MAILBOX;
+  if(!name_to_dns(&soa_mailbox, env))
+    strerr_die2x(111,fatal,"Could not create initial SOA mailbox string");
+}
+
+static int qualified(unsigned char* s) { return s[s[0]+1]; }
+
+static int stralloc_cat_domain(stralloc* s, stralloc* domain)
+{
+  if(!s->len) return 0;
+  s->s[s->len-1] = domain->s[0];
+  return stralloc_catb(s, domain->s+1, domain->len-1);
 }
 
 static void ulong_to_bytes(unsigned long num, unsigned char bytes[4])
@@ -191,25 +239,18 @@ static int response_PTR(char* q, unsigned long ttl, char* name)
 
 static int response_SOA(int authority)
 {
-  unsigned long ttl = 2560;
-  unsigned long serial = now.tv_sec;
-  unsigned long refresh = 4096;
-  unsigned long retry = 256;
-  unsigned long expire = 65536;
-  unsigned long minimum = ttl;
+  if(!stralloc_copy(&dns_name, &soa_mailbox)) return 0;
+  if(!qualified(dns_name.s))
+    if(!stralloc_cat_domain(&dns_name, &domain_name)) return 0;
 
-  if(!stralloc_copyb(&dns_name, "\12hostmaster", 11)) return 0;
-  if(!stralloc_cat(&dns_name, &domain_name)) return 0;
-  if(!stralloc_0(&dns_name)) return 0;
-
-  if(!response_rstartn(domain_name.s,DNS_T_SOA,ttl)) return 0;
+  if(!response_rstartn(domain_name.s,DNS_T_SOA,soa_ttl)) return 0;
   if(!response_addname(nameservers[0].name.s)) return 0;
   if(!response_addname(dns_name.s)) return 0;
-  if(!response_addulong(serial)) return 0;
-  if(!response_addulong(refresh)) return 0;
-  if(!response_addulong(retry)) return 0;
-  if(!response_addulong(expire)) return 0;
-  if(!response_addulong(minimum)) return 0;
+  if(!response_addulong(now.tv_sec)) return 0;
+  if(!response_addulong(soa_refresh)) return 0;
+  if(!response_addulong(soa_retry)) return 0;
+  if(!response_addulong(soa_expire)) return 0;
+  if(!response_addulong(soa_minimum)) return 0;
   response_rfinish(authority ? RESPONSE_AUTHORITY : RESPONSE_ANSWER);
   ++records;
   return 1;
@@ -246,8 +287,7 @@ static int respond_nameservers(int authority)
   if(!sent_NS) {
     for(i = 0; i < nameserver_count; i++) {
       unsigned j = (i + random_offset) % nameserver_count;
-      if(!response_NS(domain_name.s,
-		      nameservers[j].name_ttl,
+      if(!response_NS(domain_name.s, ns_name_ttl,
 		      nameservers[j].name.s, authority))
 	return 0;
     }
@@ -297,8 +337,8 @@ static int query_forward(char* q)
 	  rec->type = 0;
 	else {
 	  rec->ttl = rec->timestamp - now.tv_sec;
-	  if(rec->ttl > 3600) rec->ttl = 3600;
-	  if(rec->ttl < 2)    rec->ttl = 2;
+	  if(rec->ttl > MAX_DYNAMIC_TTL) rec->ttl = MAX_DYNAMIC_TTL;
+	  if(rec->ttl < MIN_DYNAMIC_TTL) rec->ttl = MIN_DYNAMIC_TTL;
 	}
       }
     }
@@ -397,8 +437,7 @@ int respond_additional(void)
   }
   for(i = 0; i < nameserver_count; i++) {
     unsigned j = (i + random_offset) % nameserver_count;
-    if(!response_A(nameservers[j].name.s,
-		   nameservers[j].ip_ttl,
+    if(!response_A(nameservers[j].name.s, ns_ip_ttl,
 		   nameservers[j].ip, 1))
       return 0;
   }

@@ -39,7 +39,7 @@ void sql_connect(void)
     strerr_die3x(111,fatal,"Could not connect to database: ",
 		 PQerrorMessage(pgsql));
 
-  env = env_get("SQLSETUP");
+  env = env_get("SQL_INITIALIZE");
   if(env)
     sql_exec(env);
 }
