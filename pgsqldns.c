@@ -11,9 +11,10 @@ static PGresult* sql_result = 0;
 
 void sql_exec(char* q)
 {
+#if 0
   buffer_puts(buffer_1, q);
   buffer_putsflush(buffer_1, "\n");
-
+#endif
   if(sql_result)
     PQclear(sql_result);
   sql_result = PQexec(pgsql, q);
