@@ -1,4 +1,4 @@
-- Can serve out A and MX responses.
+- Can serve out A, MX, and PTR responses.
 
 - Serves out a static list of NS records.
 
@@ -12,3 +12,16 @@
 - All records have the same nameservers.
 
 - Reads in 1 to 10 nameservers from environment variables NS0 to NS9.
+
+- Benchmark:
+  - Hardware/OS: PIII 500MHz, Linux 2.2.16, SCSI2U drives
+  - Software: pgsqldns and postgresql on same server, remote dnsbench
+  - Query mix: mix of 5 A queries
+  - Response rate:
+    - 1 client:  350/sec, 10% server idle time
+    - 2 clients: 373/sec, 4% server idle time
+    - 4 clients: 372/sec, 4% server idle time
+  - Comparison with tinydns (same mix, client, server):
+    - 1 client:  2388/sec, 50% server idle time
+    - 2 clients: 3864/sec, 15% server idle time
+    - 4 clients: 4125/sec, 4% server idle time

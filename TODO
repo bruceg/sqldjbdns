@@ -1,8 +1,6 @@
 - Escape SQL special characters in stralloc_cat_dns_to_name and
   stralloc_catb_dns_to_name to prevent arbitrary SQL command attacks.
 
-- Benchmark.
-
 - Put proper values in for the "hostmaster" string in SOA responses.
 
 - Parse name and IP TTL values for the nameservers.
