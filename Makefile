@@ -1,5 +1,5 @@
 PACKAGE = sqldjbdns
-VERSION = 0.70
+VERSION = 0.80
 
 djbdns = djbdns-1.04
 
