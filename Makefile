@@ -11,7 +11,7 @@ install_prefix =
 prefix = /usr
 bindir = $(install_prefix)$(prefix)/bin
 
-PROGS = pgsqldns dnsbench
+PROGS = pgsqldns pgsqldns-conf dnsbench
 
 default: $(PROGS)
 
@@ -20,7 +20,10 @@ pgsqldns: pgsqldns.o sqldns.o sqlschema.o $(djbdns)/dns.a
 		server.o response.o droproot.o qlog.o prot.o dd.o dns.a \
 		env.a cdb.a alloc.a buffer.a unix.a byte.a libtai.a \
 		`cat socket.lib` -lpq
-	size pgsqldns
+
+pgsqldns-conf: pgsqldns-conf.o $(djbdns)/dns.a
+	cd $(djbdns) && ./load ../pgsqldns-conf generic-conf.o \
+		auto_home.o buffer.a byte.a unix.a
 
 dnsbench: dnsbench.o $(djbdns)/dns.a
 	cd $(djbdns) && ./load ../dnsbench dns.a env.a \
@@ -33,6 +36,7 @@ install: $(PROGS)
 
 dnsbench.o: dnsbench.c Makefile
 pgsqldns.o: pgsqldns.c sqldns.h $(djbdns)/uint64.h Makefile
+pgsqldns-conf.o: pgsqldns-conf.c $(djbdns)/uint64.h Makefile
 sqldns.o: sqldns.c sqldns.h $(djbdns)/uint64.h Makefile
 sqlschema.o: sqlschema.c sqldns.h $(djbdns)/uint64.h Makefile
 

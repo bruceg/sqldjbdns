@@ -1,8 +1,3 @@
-- Add support for TXT records: split the text into 127-byte chunks that
-  get encoded as DNS strings.
-
 - Document the source code better.
 
-- Build a pgsqldns-conf program.
-
-- Serve out other record types.
+- Add support for NS names and IPs to pgsqldns-conf.
