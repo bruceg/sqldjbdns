@@ -18,8 +18,9 @@ static int sql_fetch_ip4(unsigned row, unsigned col, char ip[4])
   char* data;
   unsigned length;
 
-  length = sql_fetch(row, col, &data);
-  return length > 0 && ip4_scan(data, ip) == length;
+  if((length = sql_fetch(row, col, &data)) == SQLNULL || !length) return 0;
+  if(ip4_scan(data, ip) != length) return 0;
+  return 1;
 }
 
 static int sql_fetch_ulong(unsigned row, unsigned col, unsigned long* result)
@@ -27,28 +28,8 @@ static int sql_fetch_ulong(unsigned row, unsigned col, unsigned long* result)
   char* data;
   unsigned length;
 
-  length = sql_fetch(row, col, &data);
-  return length > 0 && scan_ulong(data, result) == length;
-}
-
-static int name_to_dns(stralloc* dns, char* name)
-     /* Convert the given text domain name into DNS binary format. */
-{
-  if(!stralloc_copys(dns, "")) return 0;
-  while(*name == '.')
-    ++name;
-  while(*name) {
-    char* start = name;
-    unsigned char tmp[1];
-    while(*name && *name != '.')
-      ++name;
-    tmp[0] = name - start;
-    if(!stralloc_catb(dns, tmp, 1)) return 0;
-    if(!stralloc_catb(dns, start, tmp[0])) return 0;
-    while(*name == '.')
-      ++name;
-  }
-  if(!stralloc_0(dns)) return 0;
+  if((length = sql_fetch(row, col, &data)) == SQLNULL || !length) return 0;
+  if(scan_ulong(data, result) != length) return 0;
   return 1;
 }
 
@@ -57,8 +38,7 @@ static int sql_fetch_stralloc(unsigned row, unsigned col, stralloc* result)
   char* data;
   unsigned length;
 
-  length = sql_fetch(row, col, &data);
-  if(!length) return 0;
+  if((length = sql_fetch(row, col, &data)) == SQLNULL) return 0;
   if(!name_to_dns(result, data)) return 0;
   return 1;
 }
@@ -78,26 +58,9 @@ static int stralloc_cat_dns_to_sql(stralloc* s, char* name)
   return 1;
 }
 
-static int stralloc_catb_dns_to_sql(stralloc* s, char* name, int bytes)
-     /* Append a limited number of bytes of the binary DNS name as
-        text to the stralloc */
-{
-  int dot = 0;
-  while(bytes > 0 && *name) {
-    unsigned len = *name++;
-    if(dot)
-      if(!stralloc_append(s, ".")) return 0;
-    if(!stralloc_catb(s, name, len)) return 0;
-    name += len;
-    bytes -= len + 1;
-    dot = 1;
-  }
-  return 1;
-}
-
 static stralloc sql_query = {0,0,0};
 
-int sql_select_domain(char* domain, unsigned long* id, char** name)
+int sql_select_domain(char* domain, unsigned long* id, stralloc* name)
 {
   unsigned i;
   
@@ -119,7 +82,8 @@ int sql_select_domain(char* domain, unsigned long* id, char** name)
   sql_exec(sql_query.s);
   if(sql_ntuples() != 1) return 0;
   if(!sql_fetch_ulong(0, 0, id)) return 0;
-  if(!sql_fetch(0, 1, name)) return 0;
+  if(!sql_fetch_stralloc(0, 1, name)) return 0;
+  if(name->len <= 1) return 0;
   return 1;
 }
 
@@ -174,8 +138,7 @@ unsigned sql_select_entries(unsigned long domain, stralloc* prefixes)
   for(i = rtuples = 0; i < tuples; i++) {
     unsigned long ttl;
     
-    if(!sql_fetch_stralloc(i, 0, &scratch))
-      if(!stralloc_copys(&scratch, "")) return 0;
+    if(!sql_fetch_stralloc(i, 0, &scratch)) return 0;
     if(!sql_fetch_ulong(i, 1, &ttl)) continue;
     
     if(sql_fetch_ip4(i, 2, rec->ip)) {
@@ -228,7 +191,8 @@ unsigned sql_select_ip4(char ip[4])
 
   rec = &sql_records[0];
   rec->type = DNS_NUM_PTR;
-  if(sql_fetch_stralloc(0, 0, &rec->prefix)) {
+  if(!sql_fetch_stralloc(0, 0, &rec->prefix)) return 0;
+  if(rec->prefix.len > 1) {
     if(!stralloc_copyb(&rec->name, rec->prefix.s, rec->prefix.len-1)) return 0;
   }
   else

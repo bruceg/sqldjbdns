@@ -37,15 +37,10 @@ static stralloc domain_prefix;
 
 static stralloc dns_name;
 
-static int name_to_dns(char* name, int add_domain)
-     /* Convert the given text domain name into DNS binary format.
-      * Set add_domain to:
-      * 0: never add the domain
-      * 1: add domain_name to unqualified domains
-      * 2: always add domain_name */
+int name_to_dns(stralloc* dns, char* name)
+     /* Convert the given text domain name into DNS binary format. */
 {
-  int is_qualified = 0;
-  if(!stralloc_copys(&dns_name, "")) return 0;
+  if(!stralloc_copys(dns, "")) return 0;
   while(*name == '.')
     ++name;
   while(*name) {
@@ -54,17 +49,13 @@ static int name_to_dns(char* name, int add_domain)
     while(*name && *name != '.')
       ++name;
     tmp[0] = name - start;
-    if(!stralloc_catb(&dns_name, tmp, 1)) return 0;
-    if(!stralloc_catb(&dns_name, start, tmp[0])) return 0;
-    if(*name == '.')
-      is_qualified = 1;
+    if(!stralloc_catb(dns, tmp, 1)) return 0;
+    if(!stralloc_catb(dns, start, tmp[0])) return 0;
     while(*name == '.')
       ++name;
   }
-  if(add_domain > is_qualified)
-    return stralloc_cat(&dns_name, &domain_name);
-  else
-    return stralloc_0(&dns_name);
+  if(!stralloc_0(dns)) return 0;
+  return 1;
 }
 
 static int parse_nameserver(unsigned ns, char* env)
@@ -77,7 +68,7 @@ static int parse_nameserver(unsigned ns, char* env)
   len = str_chr(env, ':');
   if(!len || len > 255) return 0;
   env[len] = 0;
-  if(!name_to_dns(env, 0)) return 0;
+  if(!name_to_dns(&dns_name, env)) return 0;
   env += len+1;
   byte_copy(nsptr->name, dns_name.len, dns_name.s);
   if(!(len = ip4_scan(env, nsptr->ip))) return 0;
@@ -221,8 +212,6 @@ static int response_SOA(int authority)
 
 #define LOG(MSG) buffer_putsflush(buffer_1, MSG "\n")
 
-static int qualified(char* q) { return q[*q + 1]; }
-
 static int dns_domain_join(stralloc* prefix, stralloc* domain)
 {
   prefix->s[prefix->len-1] = domain->s[0];
@@ -232,17 +221,14 @@ static int dns_domain_join(stralloc* prefix, stralloc* domain)
 static int query_domain(char* q)
 {
   char* domain;
-  if(!sql_select_domain(q, &domain_id, &domain)) return 0;
+  if(!sql_select_domain(q, &domain_id, &domain_name)) return 0;
   
-  if(!name_to_dns(domain, 0)) return 0;
-  domain = dns_domain_suffix(q, dns_name.s);
+  domain = dns_domain_suffix(q, domain_name.s);
   
   /* domain now points to the suffix part of the input query */
-  /* Copy the first part of the query into domain_prefix... */
+  /* Copy the first part of the query into domain_prefix */
   if(!stralloc_copyb(&domain_prefix, q, domain-q)) return 0;
   if(!stralloc_0(&domain_prefix)) return 0;
-  /* ...and the rest into domain_name */
-  if(!stralloc_copyb(&domain_name,domain,dns_domain_length(domain))) return 0;
   
   return 1;
 }

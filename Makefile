@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -O4 -W -Wall -Idjbdns-1.02 -g
+CFLAGS = -O2 -W -Wall -Idjbdns-1.02 -g
 
 PROGS = pgsqldns dnsbench
 

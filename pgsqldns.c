@@ -41,9 +41,9 @@ void sql_connect(void)
 
 unsigned sql_fetch(unsigned row, unsigned col, char** result)
 {
-  int length = PQgetlength(sql_result, row, col);
-  if(length <= 0)
-    return 0;
+  int length;
+  if(PQgetisnull(sql_result, row, col)) return SQLNULL;
+  if((length = PQgetlength(sql_result, row, col)) <= 0) return 0;
   *result = PQgetvalue(sql_result, row, col);
   return length;
 }
