@@ -8,6 +8,7 @@ CREATE TABLE entry (
   domain INT NOT NULL REFERENCES domain(id),
   prefix TEXT NOT NULL,
   ttl INT NOT NULL,
+  timestamp TIMESTAMP,
   ip INET,
   master_ip BOOL,
   mx_name1 TEXT,

@@ -15,6 +15,7 @@ static PGresult* sql_result = 0;
 
 void sql_exec(char* q)
 {
+  ExecStatusType status;
 #if 0
   buffer_puts(buffer_1, q);
   buffer_putsflush(buffer_1, "\n");
@@ -22,6 +23,10 @@ void sql_exec(char* q)
   if(sql_result)
     PQclear(sql_result);
   sql_result = PQexec(pgsql, q);
+  status = PQresultStatus(sql_result);
+  if(status != PGRES_TUPLES_OK && status != PGRES_COMMAND_OK)
+    strerr_die3x(111,fatal,"Fatal PostgreSQL error: ",
+		 PQresultErrorMessage(sql_result));
 }
 
 void sql_connect(void)
