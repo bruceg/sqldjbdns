@@ -43,13 +43,14 @@ The protocol signature must always be "<tt>DHUP-1</tt>".  The sequence
 is a unique increasing integer identifying the query.  The domain name
 identifies which domain to update, as well as which identity the
 authentication data should be compared against.  The new IP address
-and MX name are the new values to be stored in the server.  The IP
-address must be expressed in standard dotted-decimal notation.  If the
-MX name is blank, no MX records are stored on the server.  The
-secondary MX flag is an integer that, if set to non-zero, indicates
-that the new MX name is to be used as a secondary MX, with the primary
-MX being the domain name.  The pass phrase is a copy of a secret ASCII
-phrase shared between the client and server.</p>
+and MX name are the new values to be stored in the server.  If the IP
+address is empty, the client's IP is used, otherwise the IP address
+must be expressed in standard dotted-decimal notation.  If the MX name
+is blank, no MX records are stored on the server.  The secondary MX
+flag is an integer that, if set to non-zero, indicates that the new MX
+name is to be used as a secondary MX, with the primary MX being the
+domain name.  The pass phrase is a copy of a secret ASCII phrase
+shared between the client and server.</p>
 
 <p>The sequence number is used to determine if the request is a new
 one or has already been received by the server.  After authentication,
@@ -121,6 +122,12 @@ since the underlying protocol is inherently unreliable, it must be
 possible to process duplicate requests with a minimum of effort.
 Second, with version 2 of this protocol, the sequence number will be
 used to prevent replay attacks.</p>
+
+<p>If you leave the new IP address field empty in your request, and an
+attacker can intercept and resend your request packet to the server,
+they can control what IP the server sees as your new address.  Of
+course, if an attacker can intercept the request, they can send out
+arbitrary requests anyways as above.</p>
 
 </ol>
 
