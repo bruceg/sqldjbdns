@@ -2,8 +2,6 @@
 
 - Parse name and IP TTL values for the nameservers.
 
-- Start all address lists (nameservers, etc.) at a random offset.
-
 - Produce documentation pages.
 
 - Document the source code better.

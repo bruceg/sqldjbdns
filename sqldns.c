@@ -17,13 +17,15 @@ char *fatal = "pgsqldns: fatal: ";
 
 struct nameserver
 {
-  char name[256];
+  stralloc name;
   char ip[4];
   unsigned long name_ttl;
   unsigned long ip_ttl;
 };
 
 static char in_addr_arpa[] = "\7in-addr\4arpa";
+
+static unsigned random_offset;
 
 static unsigned nameserver_count;
 static struct nameserver nameservers[10];
@@ -67,9 +69,8 @@ static int parse_nameserver(unsigned ns, char* env)
   len = str_chr(env, ':');
   if(!len || len > 255) return 0;
   env[len] = 0;
-  if(!name_to_dns(&dns_name, env)) return 0;
+  if(!name_to_dns(&nsptr->name, env)) return 0;
   env += len+1;
-  byte_copy(nsptr->name, dns_name.len, dns_name.s);
   if(!(len = ip4_scan(env, nsptr->ip))) return 0;
   env += len;
   if(*env) return 0;
@@ -100,8 +101,10 @@ static void parse_nameservers(void)
   
 void initialize(void)
 {
+  char seed[128];
+  
+  dns_random_init(seed);
   parse_nameservers();
-
   sql_connect();
 }
 
@@ -197,7 +200,7 @@ static int response_SOA(int authority)
   if(!stralloc_0(&dns_name)) return 0;
 
   if(!response_rstartn(domain_name.s,DNS_T_SOA,ttl)) return 0;
-  if(!response_addname(nameservers[0].name)) return 0;
+  if(!response_addname(nameservers[0].name.s)) return 0;
   if(!response_addname(dns_name.s)) return 0;
   if(!response_addulong(serial)) return 0;
   if(!response_addulong(refresh)) return 0;
@@ -238,11 +241,13 @@ static int respond_nameservers(int authority)
 {
   unsigned i;
   if(!sent_NS) {
-    for(i = 0; i < nameserver_count; i++)
+    for(i = 0; i < nameserver_count; i++) {
+      unsigned j = (i + random_offset) % nameserver_count;
       if(!response_NS(domain_name.s,
-		      nameservers[i].name_ttl,
-		      nameservers[i].name, authority))
+		      nameservers[j].name_ttl,
+		      nameservers[j].name.s, authority))
 	return 0;
+    }
   }
   sent_NS = 1;
   return 1;
@@ -273,15 +278,17 @@ static int query_forward(char* q)
       if(!respond_nameservers(0)) return 0;
   }
 
-  for(row = 0; row < tuples; row++) {
-    sql_record* rec = sql_records + row;
-    switch(rec->type) {
-    case DNS_NUM_A:
-      if(lookup_A)
+  if(lookup_A) {
+    for(row = 0; row < tuples; row++) {
+      sql_record* rec = sql_records + (row + random_offset) % tuples;
+      if(rec->type == DNS_NUM_A)
 	if(!response_A(q, rec->ttl, rec->ip, 0)) return 0;
-      break;
-    case DNS_NUM_MX:
-      if(lookup_MX) {
+    }
+  }
+  if(lookup_MX) {
+    for(row = 0; row < tuples; row++) {
+      sql_record* rec = sql_records + (row + random_offset) % tuples;
+      if(rec->type == DNS_NUM_MX) {
 	if(!dns_domain_join(&rec->name, &domain_name)) return 0;
 	if(!response_MX(q, rec->ttl, rec->distance, rec->name.s)) return 0;
 	/* If the domain of the added name matches the current domain,
@@ -293,7 +300,6 @@ static int query_forward(char* q)
 	  if(!stralloc_0(&additional)) return 0;
 	}
       }
-      break;
     }
   }
   return 1;
@@ -363,18 +369,20 @@ int respond_additional(void)
       }
     }
   }
-  for(i = 0; i < nameserver_count; i++)
-    if(!response_A(nameservers[i].name,
-		   nameservers[i].ip_ttl,
-		   nameservers[i].ip, 1))
+  for(i = 0; i < nameserver_count; i++) {
+    unsigned j = (i + random_offset) % nameserver_count;
+    if(!response_A(nameservers[j].name.s,
+		   nameservers[j].ip_ttl,
+		   nameservers[j].ip, 1))
       return 0;
+  }
   return 1;
 }
 
-#define type_equal(A,B) (((A)[0] == (B)[0]) && ((A)[1] == (B)[1]))
-
 int respond(char *q, unsigned char qtype[2] /*, char srcip[4] */)
 {
+  random_offset = dns_random(~0U);
+  
   lookup_A = 0;
   lookup_MX = 0;
   lookup_NS = 0;

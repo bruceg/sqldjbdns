@@ -12,8 +12,9 @@ patch:
 
 pgsqldns: pgsqldns.o sqldns.o sqlschema.o
 	cd djbdns-1.02 && ./load ../pgsqldns ../sqldns.o ../sqlschema.o \
-		server.o response.o droproot.o qlog.o prot.o dd.o dns.a env.a \
-		cdb.a alloc.a buffer.a unix.a byte.a  `cat socket.lib` -lpq
+		server.o response.o droproot.o qlog.o prot.o dd.o dns.a \
+		env.a cdb.a alloc.a buffer.a unix.a byte.a libtai.a \
+		`cat socket.lib` -lpq
 	size pgsqldns
 
 dnsbench: dnsbench.o
