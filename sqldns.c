@@ -80,6 +80,7 @@ static int name_to_dns(stralloc* dns, char* name, int split)
       if(!stralloc_catb(dns, tmp, 1)) return 0;
       if(!stralloc_catb(dns, start, tmp[0])) return 0;
       length -= tmp[0];
+      start += tmp[0];
     }
     while(*name == '.')
       ++name;
@@ -262,6 +263,15 @@ static int response_SOA(int authority)
   return 1;
 }
 
+static int response_TXT(char* q, unsigned long ttl, char* text)
+{
+  if(!response_rstartn(q,DNS_T_TXT,ttl)) return 0;
+  if(!response_addname(text)) return 0;
+  response_rfinish(RESPONSE_ANSWER);
+  ++records;
+  return 1;
+}
+
 #define LOG(MSG) buffer_putsflush(buffer_1, MSG "\n")
 
 static int dns_domain_join(stralloc* prefix, stralloc* domain)
@@ -306,6 +316,7 @@ static int lookup_MX;
 static int lookup_NS;
 static int lookup_PTR;
 static int lookup_SOA;
+static int lookup_TXT;
 
 static unsigned tuples;
 
@@ -353,15 +364,13 @@ static int query_forward(char* q)
   }
   
   if(lookup_A) {
-    for(row = 0; row < tuples; row++) {
-      rec = sql_records + row;
+    for(row = 0, rec = sql_records; row < tuples; row++, rec++) {
       if(rec->type == DNS_NUM_A)
 	if(!response_A(q, rec->ttl, rec->ip, 0)) return 0;
     }
   }
   if(lookup_MX) {
-    for(row = 0; row < tuples; row++) {
-      rec = sql_records + row;
+    for(row = 0, rec = sql_records; row < tuples; row++, rec++) {
       if(rec->type == DNS_NUM_MX) {
 	if(!name_to_dns(&scratch, rec->name.s, 0)) return 0;
 	if(!qualified(scratch.s))
@@ -375,6 +384,14 @@ static int query_forward(char* q)
 	    return 0;
 	  if(!stralloc_0(&additional)) return 0;
 	}
+      }
+    }
+  }
+  if(lookup_TXT) {
+    for(row = 0, rec = sql_records; row < tuples; row++, rec++) {
+      if(rec->type == DNS_NUM_TXT) {
+	if(!name_to_dns(&scratch, rec->name.s, 1)) return 0;
+	if(!response_TXT(q, rec->ttl, scratch.s)) return 0;
       }
     }
   }
@@ -460,21 +477,17 @@ int respond(char *q, unsigned char qtype[2] /*, char srcip[4] */)
 {
   gettimeofday(&now, 0);
   
-  lookup_A = 0;
-  lookup_MX = 0;
-  lookup_NS = 0;
-  lookup_PTR = 0;
-  lookup_SOA = 0;
-  sent_NS = 0;
+  lookup_A=lookup_MX=lookup_NS=lookup_PTR=lookup_SOA=lookup_TXT=sent_NS=0;
   
   switch((qtype[0] << 8) | qtype[1]) {
   case DNS_NUM_ANY:
-    lookup_A = lookup_MX = lookup_NS = lookup_SOA = lookup_PTR = 1; break;
+    lookup_A=lookup_MX=lookup_NS=lookup_SOA=lookup_PTR=lookup_TXT=1; break;
   case DNS_NUM_A:   lookup_A = 1; break;
   case DNS_NUM_MX:  lookup_MX = 1; break;
   case DNS_NUM_NS:  lookup_NS = 1; break;
   case DNS_NUM_PTR: lookup_PTR = 1; break;
   case DNS_NUM_SOA: lookup_SOA = 1; break;
+  case DNS_NUM_TXT: lookup_TXT = 1; break;
   default:
     response[2] &= ~4;
     response[3] &= ~15;
