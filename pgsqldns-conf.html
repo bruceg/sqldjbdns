@@ -1,0 +1,46 @@
+<html>
+<body>
+<h1>The pgsqldns-conf program</h1>
+<tt>pgsqldns-conf</tt>
+sets up a DNS publication service.
+<h2>Interface</h2>
+<pre>
+     pgsqldns-conf <i>acct</i> <i>logacct</i> <i>D</i> <i>ip</i>
+</pre>
+
+<p><tt>pgsqldns-conf</tt> creates a service directory
+<tt><i>D</i></tt> that runs <a
+href="pgsqldns.html"><tt>pgsqldns</tt></a>.  The name
+<tt><i>D</i></tt> must start with a slash and must not contain any
+special characters.  Normally <tt><i>D</i></tt> is
+<tt>/etc/pgsqldns</tt>.</p>
+
+<p>You can run the service under
+<a href="../daemontools/svscan.html"><tt>svscan</tt></a>
+by creating a symbolic link in the <tt>svscan</tt> directory:
+<pre>
+     ln -s <i>D</i> /service
+</pre>
+The service will start within five seconds,
+and will be restarted upon reboot.  You can use
+<a href="../daemontools/svc.html"><tt>svc</tt></a>
+to control the service.</p>
+
+<p><tt>pgsqldns-conf</tt> arranges for <tt>pgsqldns</tt> to chroot to
+<tt><i>D</i>/root</tt> and to run under the uid and gid of
+<tt><i>acct</i></tt>.  The name <tt><i>acct</i></tt> must not contain
+any special characters.</p>
+
+<p><tt>pgsqldns-conf</tt> arranges for <tt>pgsqldns</tt> to listen for
+UDP packets on port 53 of <tt><i>ip</i></tt>, and to send outgoing
+packets from <tt><i>ip</i></tt>.</p>
+
+<p><tt>pgsqldns-conf</tt> creates an automatically rotated log
+directory in <tt><i>D</i>/log/main</tt>.  The logs are owned by
+<tt><i>logacct</i></tt>.  The corresponding <tt>multilog</tt>
+processes run under the uid and gid of <tt><i>logacct</i></tt>.  The
+name <tt><i>logacct</i></tt> must not contain any special
+characters.</p>
+
+</body>
+</html>
