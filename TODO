@@ -1,5 +1,7 @@
-- Escape SQL special characters in stralloc_cat_dns_to_name and
-  stralloc_catb_dns_to_name to prevent arbitrary SQL command attacks.
+- Move ALL SQL commands and query functions into seperate module (started).
+
+- Escape SQL special characters in stralloc_cat_dns_to_sql and
+  stralloc_catb_dns_to_sql to prevent arbitrary SQL command attacks.
 
 - Put proper values in for the "hostmaster" string in SOA responses.
 
@@ -12,3 +14,6 @@
 - Document the source code better.
 
 - Build a sqldns-conf program.
+
+- Implement a time-to-die specification, dynamically decreasing TTL
+  values until the given time is reached.

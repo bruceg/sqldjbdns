@@ -21,8 +21,8 @@ dnsbench: dnsbench.o
 		alloc.a unix.a byte.a iopause.o \
 		libtai.a `cat socket.lib`
 
-sqldns.o: sqldns.c sql.h Makefile
-pgsqldns.o: pgsqldns.c sql.h Makefile
+sqldns.o: sqldns.c sqldns.h Makefile
+pgsqldns.o: pgsqldns.c sqldns.h Makefile
 dnsbench.o: dnsbench.c Makefile
 
 clean:

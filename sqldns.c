@@ -31,24 +31,6 @@ static struct nameserver nameservers[10];
 
 static stralloc sql_query;
 
-static int sql_fetch_ip(unsigned row, unsigned col, char ip[4])
-{
-  char* data;
-  unsigned length;
-
-  length = sql_fetch(row, col, &data);
-  return length > 0 && ip4_scan(data, ip) == length;
-}
-
-static int sql_fetch_ulong(unsigned row, unsigned col, unsigned long* result)
-{
-  char* data;
-  unsigned length;
-
-  length = sql_fetch(row, col, &data);
-  return length > 0 && scan_ulong(data, result) == length;
-}
-
 static unsigned long domain_id;
 static stralloc domain_name;
 static stralloc domain_prefix;
@@ -139,38 +121,6 @@ void initialize(void)
     sql_exec(env);
 }
 
-static int stralloc_cat_dns_to_name(stralloc* s, char* name)
-     /* Append the binary DNS name as text to the stralloc */
-{
-  int dot = 0;
-  while(*name) {
-    unsigned len = *name++;
-    if(dot)
-      if(!stralloc_append(s, ".")) return 0;
-    if(!stralloc_catb(s, name, len)) return 0;
-    name += len;
-    dot = 1;
-  }
-  return 1;
-}
-
-static int stralloc_catb_dns_to_name(stralloc* s, char* name, int bytes)
-     /* Append a limited number of bytes of the binary DNS name as
-        text to the stralloc */
-{
-  int dot = 0;
-  while(bytes > 0 && *name) {
-    unsigned len = *name++;
-    if(dot)
-      if(!stralloc_append(s, ".")) return 0;
-    if(!stralloc_catb(s, name, len)) return 0;
-    name += len;
-    bytes -= len + 1;
-    dot = 1;
-  }
-  return 1;
-}
-
 static void ulong_to_bytes(unsigned long num, unsigned char bytes[4])
 {
   bytes[3] = num & 0xff; num >>= 8;
@@ -208,7 +158,7 @@ static int response_rstartn(char* q, char type[2], unsigned long ttl)
 }
 
 static unsigned records;
-static unsigned additional;
+static stralloc additional;
 
 /* Build a complete A response */
 static int response_A(char* q, unsigned long ttl, char ip[4], int additional)
@@ -277,32 +227,19 @@ static int response_SOA(int authority)
 
 #define LOG(MSG) buffer_putsflush(buffer_1, MSG "\n")
 
+static int qualified(char* q) { return q[*q + 1]; }
+
+static int qualify(stralloc* q)
+{
+  q->s[q->len-1] = domain_name.s[0];
+  return stralloc_catb(q, domain_name.s+1, domain_name.len-1);
+}
+
 static int query_domain(char* q)
 {
   char* domain;
-  unsigned i;
+  if(!sql_select_domain(q, &domain_id, &domain)) return 0;
   
-  if(!stralloc_copys(&sql_query,
-		     "SELECT id,name "
-		     "FROM domain "
-		     "WHERE name='"))
-    return 0;
-  domain = q;
-  for(i = 0; *domain; ++i, domain += *domain+1) {
-    if(i)
-      if(!stralloc_cats(&sql_query, " OR name='")) return 0;
-    if(!stralloc_cat_dns_to_name(&sql_query, domain)) return 0;
-    if(!stralloc_append(&sql_query, "'")) return 0;
-  }
-  if(!stralloc_cats(&sql_query,
-		    " ORDER BY length(name) DESC LIMIT 1"))
-    return 0;
-  if(!stralloc_0(&sql_query)) return 0;
-  sql_exec(sql_query.s);
-  if(sql_ntuples() != 1) return 0;
-  if(!sql_fetch_ulong(0, 0, &domain_id)) return 0;
-  
-  sql_fetch(0, 1, &domain);
   if(!name_to_dns(domain, 0)) return 0;
   domain = dns_domain_suffix(q, dns_name.s);
   
@@ -313,43 +250,6 @@ static int query_domain(char* q)
   /* ...and the rest into domain_name */
   if(!stralloc_copyb(&domain_name,domain,dns_domain_length(domain))) return 0;
   
-  return 1;
-}
-
-static int query_add_MX(char* q, unsigned row, unsigned field, unsigned dist)
-{
-  char* name;
-  unsigned long ttl;
-  char* domain;
-  
-  if(!sql_fetch(row, field, &name)) return 1;
-  if(!sql_fetch_ulong(row, 0, &ttl)) return 0;
-  if(!name_to_dns(name, 1)) return 0;
-  if(!response_MX(q,ttl,dist,dns_name.s)) return 0;
-
-  /* If the domain of the added name matches the current domain,
-   * add an additional A record */
-  domain = dns_domain_suffix(dns_name.s, domain_name.s);
-  if(domain) {
-    if(additional)
-      if(!stralloc_cats(&sql_query, " OR prefix='")) return 0;
-    ++additional;
-    if(!stralloc_catb_dns_to_name(&sql_query, dns_name.s,
-				  domain-dns_name.s)) return 0;
-    if(!stralloc_append(&sql_query, "'")) return 0;
-  }
-  return 1;
-}
-
-static int query_add_A(char* q, unsigned row, unsigned field)
-{
-  char ip[4];
-  if(sql_fetch_ip(row, field, ip)) {
-    unsigned long ttl;
-
-    sql_fetch_ulong(row, 0, &ttl);
-    if(!response_A(q, ttl, ip, 0)) return 0;
-  }
   return 1;
 }
 
@@ -375,32 +275,13 @@ static int query_forward(char* q)
 {
   unsigned row;
   unsigned tuples;
-
-  if(!stralloc_copys(&sql_query,
-		     "SELECT ttl,ip,mx_name1,mx_name2 "
-		     "FROM entry "
-		     "WHERE domain=")) return 0;
-  if(!stralloc_catulong0(&sql_query, domain_id, 0)) return 0;
-  if(!stralloc_cats(&sql_query, " AND prefix='")) return 0;
-  if(!stralloc_cat_dns_to_name(&sql_query, domain_prefix.s)) return 0;
-  if(!stralloc_append(&sql_query, "'")) return 0;
-  if(!stralloc_0(&sql_query)) return 0;
-  sql_exec(sql_query.s);
-
-  tuples = sql_ntuples();
-  if(tuples == 0) {
+  char* domain;
+  
+  tuples = sql_select_entries(domain_id, domain_prefix.s,
+			      lookup_A, lookup_MX);
+  if(!tuples) {
     response_nxdomain();
     return 1;
-  }
-
-  /* Start up secondary query for additional A records */
-  if(lookup_MX) {
-    if(!stralloc_copys(&sql_query,
-		       "SELECT ttl,ip,prefix "
-		       "FROM entry "
-		       "WHERE domain=")) return 0;
-    if(!stralloc_catulong0(&sql_query, domain_id, 0)) return 0;
-    if(!stralloc_cats(&sql_query, " AND (prefix='")) return 0;
   }
 
   if(domain_prefix.len == 1) {
@@ -412,16 +293,25 @@ static int query_forward(char* q)
   }
 
   for(row = 0; row < tuples; row++) {
-    if(lookup_A)
-      if(!query_add_A(q, row, 1)) return 0;
-  
-    if(lookup_MX) {
-      if(!query_add_MX(q, row, 2, 1)) return 0;
-      if(!query_add_MX(q, row, 3, 2)) return 0;
+    sql_record* rec = sql_records + row;
+    switch(rec->type) {
+    case DNS_NUM_A:
+      if(!response_A(q, rec->ttl, rec->ip, 0)) return 0;
+      break;
+    case DNS_NUM_MX:
+      if(!qualify(&rec->name)) return 0;
+      if(!response_MX(q, rec->ttl, rec->distance, rec->name.s)) return 0;
+      /* If the domain of the added name matches the current domain,
+       * add an additional A record */
+      domain = dns_domain_suffix(dns_name.s, domain_name.s);
+      if(domain) {
+	if(!stralloc_catb(&additional, dns_name.s, domain-dns_name.s))
+	  return 0;
+	if(!stralloc_0(&additional)) return 0;
+      }
+      break;
     }
   }
-  if(lookup_MX)
-    if(!stralloc_catb(&sql_query, ")", 2)) return 0;
   return 1;
 }
 
@@ -507,14 +397,14 @@ static int respond_authorities(void)
 int respond_additional(void)
 {
   unsigned i;
-  if(additional) {
+  if(additional.len) {
     unsigned row;
     unsigned tuples;
     sql_exec(sql_query.s);
     tuples = sql_ntuples();
     for(row = 0; row < tuples; row++) {
       char ip[4];
-      if(sql_fetch_ip(row, 1, ip)) {
+      if(sql_fetch_ip4(row, 1, ip)) {
 	unsigned long ttl;
 	char* prefix;
 	if(!sql_fetch_ulong(row, 0, &ttl) ||
@@ -534,7 +424,7 @@ int respond_additional(void)
 
 #define type_equal(A,B) (((A)[0] == (B)[0]) && ((A)[1] == (B)[1]))
 
-int respond(char *q, char qtype[2] /*, char srcip[4] */)
+int respond(char *q, unsigned char qtype[2] /*, char srcip[4] */)
 {
   lookup_A = 0;
   lookup_MX = 0;
@@ -543,19 +433,15 @@ int respond(char *q, char qtype[2] /*, char srcip[4] */)
   lookup_SOA = 0;
   sent_NS = 0;
   
-  if(type_equal(qtype, DNS_T_ANY))
-    lookup_A = lookup_MX = lookup_NS = lookup_SOA = lookup_PTR = 1;
-  else if(type_equal(qtype, DNS_T_A))
-    lookup_A = 1;
-  else if(type_equal(qtype, DNS_T_MX))
-    lookup_MX = 1;
-  else if(type_equal(qtype, DNS_T_NS))
-    lookup_NS = 1;
-  else if(type_equal(qtype, DNS_T_PTR))
-    lookup_PTR = 1;
-  else if(type_equal(qtype, DNS_T_SOA))
-    lookup_SOA = 1;
-  else {
+  switch((qtype[0] << 8) | qtype[1]) {
+  case DNS_NUM_ANY:
+    lookup_A = lookup_MX = lookup_NS = lookup_SOA = lookup_PTR = 1; break;
+  case DNS_NUM_A:   lookup_A = 1; break;
+  case DNS_NUM_MX:  lookup_MX = 1; break;
+  case DNS_NUM_NS:  lookup_NS = 1; break;
+  case DNS_NUM_PTR: lookup_PTR = 1; break;
+  case DNS_NUM_SOA: lookup_SOA = 1; break;
+  default:
     response[2] &= ~4;
     response[3] &= ~15;
     response[3] |= 5;
@@ -565,7 +451,8 @@ int respond(char *q, char qtype[2] /*, char srcip[4] */)
   if(!query_domain(q)) return 0;
   
   records = 0;
-  additional = 0;
+  if(!stralloc_copys(&additional, "")) return 0;
+
   if(dns_domain_suffix(q, in_addr_arpa)) {
     if(!query_reverse(q)) return 0;
   }
