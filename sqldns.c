@@ -11,6 +11,8 @@
 #include <time.h>
 #include "sqldns.h"
 
+sql_record sql_records[SQL_RECORD_MAX];
+
 char *fatal = "pgsqldns: fatal: ";
 
 struct nameserver
@@ -28,8 +30,6 @@ static struct nameserver nameservers[10];
 
 #define DEFAULT_NS_NAME_TTL 86400
 #define DEFAULT_NS_IP_TTL 86400
-
-static stralloc sql_query;
 
 static unsigned long domain_id;
 static stralloc domain_name;
@@ -110,15 +110,9 @@ static void parse_nameservers(void)
   
 void initialize(void)
 {
-  char* env;
-
   parse_nameservers();
 
   sql_connect();
-
-  env = env_get("SQLSETUP");
-  if(env)
-    sql_exec(env);
 }
 
 static void ulong_to_bytes(unsigned long num, unsigned char bytes[4])
@@ -229,10 +223,10 @@ static int response_SOA(int authority)
 
 static int qualified(char* q) { return q[*q + 1]; }
 
-static int qualify(stralloc* q)
+static int dns_domain_join(stralloc* prefix, stralloc* domain)
 {
-  q->s[q->len-1] = domain_name.s[0];
-  return stralloc_catb(q, domain_name.s+1, domain_name.len-1);
+  prefix->s[prefix->len-1] = domain->s[0];
+  return stralloc_catb(prefix, domain->s+1, domain->len-1);
 }
 
 static int query_domain(char* q)
@@ -277,7 +271,7 @@ static int query_forward(char* q)
   unsigned tuples;
   char* domain;
   
-  tuples = sql_select_entries(domain_id, domain_prefix.s,
+  tuples = sql_select_entries(domain_id, &domain_prefix,
 			      lookup_A, lookup_MX);
   if(!tuples) {
     response_nxdomain();
@@ -299,7 +293,7 @@ static int query_forward(char* q)
       if(!response_A(q, rec->ttl, rec->ip, 0)) return 0;
       break;
     case DNS_NUM_MX:
-      if(!qualify(&rec->name)) return 0;
+      if(!dns_domain_join(&rec->name, &domain_name)) return 0;
       if(!response_MX(q, rec->ttl, rec->distance, rec->name.s)) return 0;
       /* If the domain of the added name matches the current domain,
        * add an additional A record */
@@ -320,12 +314,9 @@ static int query_reverse(unsigned char* q)
   /* Convert the numerical parts of q to an ip array
    * If one of the 4 parts is bad, give a NXDOMAIN response */
   char ip[4];
-  char ipstr[IP4_FMT];
   unsigned parts;
-  char* prefix;
-  char* domain;
   char* ptr;
-  unsigned long ttl;
+  sql_record* rec;
   
   if(!lookup_PTR) return response_SOA(1);
   
@@ -353,36 +344,15 @@ static int query_reverse(unsigned char* q)
     return 1;
   }
 
-  /* Lookup the IP address in the database */
-  ipstr[ip4_fmt(ipstr, ip)] = 0;
-  if(!stralloc_copys(&sql_query,
-		     "SELECT prefix,name,ttl "
-		     "FROM domain,entry "
-		     "WHERE entry.domain=domain.id "
-		     "AND master_ip='T' and ip='")) return 0;
-  if(!stralloc_catb(&sql_query, ipstr, ip4_fmt(ipstr, ip))) return 0;
-  if(!stralloc_catb(&sql_query, "'", 2)) return 0;
-  sql_exec(sql_query.s);
-  if(sql_ntuples() != 1) {
+  switch(sql_select_ip4(ip)) {
+  case 0: return 0;
+  case 1:
     response_nxdomain();
     return 1;
   }
 
-  /* Use sql_query as scratch space to produce the domain name */
-  if(sql_fetch(0, 0, &prefix)) {
-    if(!stralloc_copys(&sql_query, prefix)) return 0;
-    if(!stralloc_append(&sql_query, ".")) return 0;
-  }
-  else
-    if(!stralloc_copys(&sql_query, "")) return 0;
-  sql_fetch(0, 1, &domain);
-  if(!stralloc_cats(&sql_query, domain)) return 0;
-  if(!stralloc_0(&sql_query)) return 0;
-  if(!name_to_dns(sql_query.s, 0)) return 0;
-  
-  /* Produce a PTR response */
-  if(!sql_fetch_ulong(0, 2, &ttl)) return 0;
-  if(!response_PTR(q, ttl, dns_name.s)) return 0;
+  rec = &sql_records[0];
+  if(!response_PTR(q, rec->ttl, rec->name.s)) return 0;
   return 1;
 }
 
@@ -398,20 +368,12 @@ int respond_additional(void)
 {
   unsigned i;
   if(additional.len) {
+    unsigned tuples = sql_select_entries(domain_id, &additional, 1, 0);
     unsigned row;
-    unsigned tuples;
-    sql_exec(sql_query.s);
-    tuples = sql_ntuples();
     for(row = 0; row < tuples; row++) {
-      char ip[4];
-      if(sql_fetch_ip4(row, 1, ip)) {
-	unsigned long ttl;
-	char* prefix;
-	if(!sql_fetch_ulong(row, 0, &ttl) ||
-	   !sql_fetch(row, 2, &prefix)) return 0;
-	if(!name_to_dns(prefix, 2)) return 0;
-	if(!response_A(dns_name.s,ttl,ip,1)) return 0;
-      }
+      sql_record* rec = &sql_records[row];
+      if(!dns_domain_join(&rec->prefix, &domain_name)) return 0;
+      if(!response_A(rec->prefix.s,rec->ttl,rec->ip,1)) return 0;
     }
   }
   for(i = 0; i < nameserver_count; i++)
