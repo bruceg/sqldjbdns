@@ -33,4 +33,4 @@ rm -rf $RPM_BUILD_ROOT
 %files
 %defattr(-,root,root)
 %doc README STATUS TODO *.html
-/usr/bin/pgsqldns
+/usr/bin/*

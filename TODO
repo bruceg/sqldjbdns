@@ -1,3 +1,22 @@
 - Document the source code better.
 
 - Add support for NS names and IPs to pgsqldns-conf.
+
+- Add support for wildcard DNS records.  Two options on doing this:
+
+  - Make querying the domain return all records for that domain, insert
+    them into an associative array indexed by prefix, and select the
+    appropriate records from that.
+    - This is much faster for the common case, but large domains could
+      cause problems.
+    - This would also let us do the "additional" records without
+      additional SQL queries.
+    - This could also let us micro-optimize repeated queries for the
+      same domain by holding onto the data if it is still less old than
+      some threshold (say one second).
+
+  - Issue SQL queries for shorter and shorter pieces of the domain name
+    prefixed with a "*", until something matches.
+    - This is the simplest solution.
+    - Also the most time consuming due to the latency in receiving the
+      data from the necessary SQL queries.

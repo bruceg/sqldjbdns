@@ -1,8 +1,8 @@
 sqldjbdns
 SQL DNS server based on djbdns
 Bruce Guenter <bruceg@em.ca>
-Version 0.50
-2000-11-08
+Version 0.70
+2000-11-15
 
 Sqldjbdns is a new authoritative DNS server that pulls its data directly
 from a set of SQL tables.  It supports fully dynamic A, MX, and PTR
