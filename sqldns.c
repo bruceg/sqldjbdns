@@ -54,8 +54,7 @@ int name_to_dns(stralloc* dns, char* name)
     while(*name == '.')
       ++name;
   }
-  if(!stralloc_0(dns)) return 0;
-  return 1;
+  return stralloc_0(dns);
 }
 
 static int parse_nameserver(unsigned ns, char* env)
@@ -309,7 +308,8 @@ static int query_reverse(unsigned char* q)
   char* ptr;
   sql_record* rec;
   
-  if(!lookup_PTR) return response_SOA(1);
+  if(!lookup_PTR)
+    return response_SOA(1);
   
   ptr = q;
   for(parts = 0; parts < 4; parts++) {
@@ -346,16 +346,7 @@ static int query_reverse(unsigned char* q)
   }
 
   rec = &sql_records[0];
-  if(!response_PTR(q, rec->ttl, rec->name.s)) return 0;
-
-  return 1;
-}
-
-static int respond_authorities(void)
-{
-  if(!respond_nameservers(1))
-    return 0;
-  return 1;
+  return response_PTR(q, rec->ttl, rec->name.s);
 }
 
 int respond_additional(void)
@@ -422,7 +413,7 @@ int respond(char *q, unsigned char qtype[2] /*, char srcip[4] */)
     if(!response_SOA(1)) return 0;
   }
   else {
-    if(!respond_authorities()) return 0;
+    if(!respond_nameservers(1)) return 0;
     if(!respond_additional()) return 0;
   }
   return 1;

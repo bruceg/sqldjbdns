@@ -19,8 +19,7 @@ static int sql_fetch_ip4(unsigned row, unsigned col, char ip[4])
   unsigned length;
 
   if((length = sql_fetch(row, col, &data)) == SQLNULL || !length) return 0;
-  if(ip4_scan(data, ip) != length) return 0;
-  return 1;
+  return ip4_scan(data, ip) == length;
 }
 
 static int sql_fetch_ulong(unsigned row, unsigned col, unsigned long* result)
@@ -29,8 +28,7 @@ static int sql_fetch_ulong(unsigned row, unsigned col, unsigned long* result)
   unsigned length;
 
   if((length = sql_fetch(row, col, &data)) == SQLNULL || !length) return 0;
-  if(scan_ulong(data, result) != length) return 0;
-  return 1;
+  return scan_ulong(data, result) == length;
 }
 
 static int sql_fetch_stralloc(unsigned row, unsigned col, stralloc* result)
@@ -39,23 +37,49 @@ static int sql_fetch_stralloc(unsigned row, unsigned col, stralloc* result)
   unsigned length;
 
   if((length = sql_fetch(row, col, &data)) == SQLNULL) return 0;
-  if(!name_to_dns(result, data)) return 0;
-  return 1;
+  return name_to_dns(result, data);
+}
+
+static int stralloc_appendb(stralloc* s, char b)
+{
+  char tmp[1];
+  tmp[0] = b;
+  return stralloc_append(s, tmp);
+}
+
+static int stralloc_catoctal(stralloc* s, unsigned char c)
+{
+  char tmp[5];
+  tmp[0] = '\\';
+  tmp[1] = '0' + ((c >> 6) & 7);
+  tmp[2] = '0' + ((c >> 3) & 7);
+  tmp[3] = '0' + (c & 7);
+  tmp[4] = 0;
+  return stralloc_cats(s, tmp);
 }
 
 static int stralloc_cat_dns_to_sql(stralloc* s, char* name)
      /* Append the binary DNS name as text to the stralloc */
 {
   int dot = 0;
+  if(!stralloc_append(s, "'")) return 0;
   while(*name) {
-    unsigned len = *name++;
+    unsigned len;
     if(dot)
       if(!stralloc_append(s, ".")) return 0;
-    if(!stralloc_catb(s, name, len)) return 0;
-    name += len;
+    for(len = *name++; len; --len, ++name) {
+      char ch = *name;
+      if(ch >= 'A' && ch <= 'Z') ch += 32;
+      if((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') ||
+	 ch == '-' || ch == '_') {
+	if(!stralloc_appendb(s, ch)) return 0;
+      }
+      else
+	if(!stralloc_catoctal(s, ch)) return 0;
+    }
     dot = 1;
   }
-  return 1;
+  return stralloc_append(s, "'");
 }
 
 static stralloc sql_query = {0,0,0};
@@ -67,13 +91,12 @@ int sql_select_domain(char* domain, unsigned long* id, stralloc* name)
   if(!stralloc_copys(&sql_query,
 		     "SELECT id,name "
 		     "FROM domain "
-		     "WHERE name='"))
+		     "WHERE name="))
     return 0;
   for(i = 0; *domain; ++i, domain += *domain+1) {
     if(i)
-      if(!stralloc_cats(&sql_query, " OR name='")) return 0;
+      if(!stralloc_cats(&sql_query, " OR name=")) return 0;
     if(!stralloc_cat_dns_to_sql(&sql_query, domain)) return 0;
-    if(!stralloc_append(&sql_query, "'")) return 0;
   }
   if(!stralloc_cats(&sql_query,
 		    " ORDER BY length(name) DESC LIMIT 1"))
@@ -83,8 +106,7 @@ int sql_select_domain(char* domain, unsigned long* id, stralloc* name)
   if(sql_ntuples() != 1) return 0;
   if(!sql_fetch_ulong(0, 0, id)) return 0;
   if(!sql_fetch_stralloc(0, 1, name)) return 0;
-  if(name->len <= 1) return 0;
-  return 1;
+  return name->len > 1;
 }
 
 static int stralloc_cat_prefixes(stralloc* q, stralloc* prefixes)
@@ -100,9 +122,8 @@ static int stralloc_cat_prefixes(stralloc* q, stralloc* prefixes)
 
   while(left) {
     if(!first && !stralloc_cats(q, " OR ")) return 0;
-    if(!stralloc_cats(q, "prefix='")) return 0;
+    if(!stralloc_cats(q, "prefix=")) return 0;
     if(!stralloc_cat_dns_to_sql(q, ptr)) return 0;
-    if(!stralloc_append(q, "'")) return 0;
     len = dns_domain_length(ptr);
     ptr += len;
     left -= len;
