@@ -21,11 +21,16 @@ struct nameserver
   unsigned long ip_ttl;
 };
 
+static char in_addr_arpa[] = "\7in-addr\4arpa";
+
 static unsigned nameserver_count;
 static struct nameserver nameservers[10];
 
 #define DEFAULT_NS_NAME_TTL 86400
 #define DEFAULT_NS_IP_TTL 86400
+#define DEFAULT_PTR_TTL 2560
+
+static unsigned long ptr_ttl;
 
 static stralloc sql_query;
 
@@ -126,15 +131,19 @@ static void parse_nameservers(void)
   
 void initialize(void)
 {
-  char* sqlcmd;
+  char* env;
 
   parse_nameservers();
 
   sql_connect();
 
-  sqlcmd = env_get("SQLSETUP");
-  if(sqlcmd)
-    sql_exec(sqlcmd);
+  env = env_get("SQLSETUP");
+  if(env)
+    sql_exec(env);
+
+  env = env_get("PTRTTL");
+  if(!env || env[scan_ulong(env, &ptr_ttl)] != 0)
+    ptr_ttl = DEFAULT_PTR_TTL;
 }
 
 static int stralloc_cat_dns_to_name(stralloc* s, char* name)
@@ -238,8 +247,18 @@ static int response_NS(char* q, unsigned long ttl, char* ns, int authority)
   return 1;
 }
 
-static int response_SOA(unsigned long ttl, int authority)
+static int response_PTR(char* q, unsigned long ttl, char* name)
 {
+  if(!response_rstartn(q,DNS_T_PTR,ttl)) return 0;
+  if(!response_addname(name)) return 0;
+  response_rfinish(RESPONSE_ANSWER);
+  ++records;
+  return 1;
+}
+
+static int response_SOA(int authority)
+{
+  unsigned long ttl = 2560;
   unsigned long serial = time(0);
   unsigned long refresh = 4096;
   unsigned long retry = 256;
@@ -265,7 +284,7 @@ static int response_SOA(unsigned long ttl, int authority)
 
 #define LOG(MSG) buffer_putsflush(buffer_1, MSG "\n")
 
-static int query_database(char* q)
+static int query_domain(char* q)
 {
   char* domain;
   unsigned i;
@@ -301,16 +320,6 @@ static int query_database(char* q)
   /* ...and the rest into domain_name */
   if(!stralloc_copyb(&domain_name,domain,dns_domain_length(domain))) return 0;
   
-  if(!stralloc_copys(&sql_query,
-		     "SELECT ttl,ip,mx_name1,mx_name2 "
-		     "FROM entry "
-		     "WHERE domain=")) return 0;
-  if(!stralloc_catulong0(&sql_query, domain_id, 0)) return 0;
-  if(!stralloc_cats(&sql_query, " AND prefix='")) return 0;
-  if(!stralloc_cat_dns_to_name(&sql_query, domain_prefix.s)) return 0;
-  if(!stralloc_append(&sql_query, "'")) return 0;
-  if(!stralloc_0(&sql_query)) return 0;
-  sql_exec(sql_query.s);
   return 1;
 }
 
@@ -365,16 +374,25 @@ static int respond_nameservers(int authority)
 static int lookup_A;
 static int lookup_MX;
 static int lookup_NS;
+static int lookup_PTR;
 static int lookup_SOA;
-static int sent_ns;
+static int sent_NS;
 
-static int make_response(char* q)
+static int query_forward(char* q)
 {
   unsigned row;
   unsigned tuples;
 
-  records = 0;
-  additional = 0;
+  if(!stralloc_copys(&sql_query,
+		     "SELECT ttl,ip,mx_name1,mx_name2 "
+		     "FROM entry "
+		     "WHERE domain=")) return 0;
+  if(!stralloc_catulong0(&sql_query, domain_id, 0)) return 0;
+  if(!stralloc_cats(&sql_query, " AND prefix='")) return 0;
+  if(!stralloc_cat_dns_to_name(&sql_query, domain_prefix.s)) return 0;
+  if(!stralloc_append(&sql_query, "'")) return 0;
+  if(!stralloc_0(&sql_query)) return 0;
+  sql_exec(sql_query.s);
 
   tuples = sql_ntuples();
   if(tuples == 0) {
@@ -393,10 +411,10 @@ static int make_response(char* q)
   }
 
   if(domain_prefix.len == 1) {
-    if(lookup_SOA && !response_SOA(2560, 0)) return 0;
+    if(lookup_SOA && !response_SOA(0)) return 0;
     if(lookup_NS) {
       if(!respond_nameservers(0)) return 0;
-      sent_ns = 1;
+      sent_NS = 1;
     }
   }
 
@@ -414,9 +432,78 @@ static int make_response(char* q)
   return 1;
 }
 
+static int query_reverse(unsigned char* q)
+{
+  /* Convert the numerical parts of q to an ip array
+   * If one of the 4 parts is bad, give a NXDOMAIN response */
+  char ip[4];
+  char ipstr[IP4_FMT];
+  unsigned parts;
+  char* prefix;
+  char* domain;
+  char* ptr;
+
+  if(!lookup_PTR) return response_SOA(1);
+  
+  ptr = q;
+  for(parts = 0; parts < 4; parts++) {
+    unsigned len = *ptr;
+    unsigned long num;
+    if(!byte_diff(ptr, sizeof in_addr_arpa, in_addr_arpa)) break;
+    if(scan_ulong(ptr+1, &num) != len || num > 255) {
+      response_nxdomain();
+      return 1;
+    }
+    ip[3-parts] = num;
+    ptr += len + 1;
+  }
+  /* If less than 4 parts were converted:
+   *   if domain_prefix is empty:
+   *     produce an SOA response
+   *   else:
+   *     produce a NXDOMAIN response */
+  if(parts < 4 || byte_diff(ptr, sizeof in_addr_arpa, in_addr_arpa)) {
+    if(domain_prefix.len == 1)
+      return response_SOA(1);
+    response_nxdomain();
+    return 1;
+  }
+
+  /* Lookup the IP address in the database */
+  ipstr[ip4_fmt(ipstr, ip)] = 0;
+  if(!stralloc_copys(&sql_query,
+		     "SELECT prefix,name "
+		     "FROM domain,entry "
+		     "WHERE entry.domain=domain.id "
+		     "AND master_ip='T' and ip='")) return 0;
+  if(!stralloc_catb(&sql_query, ipstr, ip4_fmt(ipstr, ip))) return 0;
+  if(!stralloc_catb(&sql_query, "'", 2)) return 0;
+  sql_exec(sql_query.s);
+  if(sql_ntuples() != 1) {
+    response_nxdomain();
+    return 1;
+  }
+
+  /* Use sql_query as scratch space to produce the domain name */
+  if(sql_fetch(0, 0, &prefix)) {
+    if(!stralloc_copys(&sql_query, prefix)) return 0;
+    if(!stralloc_append(&sql_query, ".")) return 0;
+  }
+  else
+    if(!stralloc_copys(&sql_query, "")) return 0;
+  sql_fetch(0, 1, &domain);
+  if(!stralloc_cats(&sql_query, domain)) return 0;
+  if(!stralloc_0(&sql_query)) return 0;
+  if(!name_to_dns(sql_query.s, 0)) return 0;
+  
+  /* Produce a PTR response */
+  if(!response_PTR(q, ptr_ttl, dns_name.s)) return 0;
+  return 1;
+}
+
 static int respond_authorities(void)
 {
-  if(!sent_ns &&
+  if(!sent_NS &&
      !respond_nameservers(1))
     return 0;
   return 1;
@@ -457,17 +544,20 @@ int respond(char *q, char qtype[2] /*, char srcip[4] */)
   lookup_A = 0;
   lookup_MX = 0;
   lookup_NS = 0;
+  lookup_PTR = 0;
   lookup_SOA = 0;
-  sent_ns = 0;
+  sent_NS = 0;
   
   if(type_equal(qtype, DNS_T_ANY))
-    lookup_A = lookup_MX = lookup_NS = lookup_SOA = 1;
+    lookup_A = lookup_MX = lookup_NS = lookup_SOA = lookup_PTR = 1;
   else if(type_equal(qtype, DNS_T_A))
     lookup_A = 1;
   else if(type_equal(qtype, DNS_T_MX))
     lookup_MX = 1;
   else if(type_equal(qtype, DNS_T_NS))
     lookup_NS = 1;
+  else if(type_equal(qtype, DNS_T_PTR))
+    lookup_PTR = 1;
   else if(type_equal(qtype, DNS_T_SOA))
     lookup_SOA = 1;
   else {
@@ -476,12 +566,20 @@ int respond(char *q, char qtype[2] /*, char srcip[4] */)
     response[3] |= 5;
     return 1;
   }
+
+  if(!query_domain(q)) return 0;
   
-  if(!query_database(q)) return 0;
-  if(!make_response(q)) return 0;
+  records = 0;
+  additional = 0;
+  if(dns_domain_suffix(q, in_addr_arpa)) {
+    if(!query_reverse(q)) return 0;
+  }
+  else {
+    if(!query_forward(q)) return 0;
+  }
   
   if(!records)
-    return response_SOA(2560, 1);
+    return response_SOA(1);
   else
     return respond_authorities() && respond_additional();
 }
