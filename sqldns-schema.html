@@ -44,9 +44,14 @@ its TTL as indicated).</p>
 
 <p><tt>type</tt> must be one of the following:<ul>
 
-<li>1 == A (address)
+<li>1 == A (address). The <tt>ip</tt> and <tt>master_ip</tt> fields
+are used.
 
-<li>15 == MX (mail exchanger)
+<li>15 == MX (mail exchanger). The <tt>distance</tt> and <tt>name</tt>
+fields are used.
+
+<li>16 == TXT (Text). The <tt>name</tt> field is used as the text
+string.
 
 </ul>All other types are currently ignored.</p>
 
