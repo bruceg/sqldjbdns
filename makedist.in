@@ -24,7 +24,7 @@ DOCS=
 
 # Set EXTRAS to a list of any other extra files that should go into the
 # base directory in the destination site.
-EXTRAS="README STATUS TODO *.html"
+EXTRAS="README STATUS TODO *.html djbdns-1.02.tar.gz"
 
 # Set EXTRAS_VER to a list of any other extra files that should go into
 # the version-numbered directory in the destination site.

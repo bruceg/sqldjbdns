@@ -15,6 +15,13 @@ databases and different table schemas would be fairly easy to add.
 There is no configuration tool, and the RPM does not install in a
 ready-to-run form.
 
+To build the package, you need to unpack and build the djbdns-1.02
+package inside the build directory of sqldjbdns by downloading the
+djbdns-1.02.tar.gz package and running:
+	gzip -dc djbdns-1.02.tar.gz | tar -xf -
+	make -C djbdns-1.02
+Then run "make" in the build directory of sqldjbdns.
+
 A mailing list has been set up to discuss this package.  To subscribe,
 send an email to:
 	bgware-subscribe@lists.em.ca
