@@ -1,0 +1,14 @@
+- Can serve out A and MX responses.
+
+- Serves out a static list of NS records.
+
+- Serves out a somewhat faked but acceptable SOA record.
+
+- Adds additional A records for in-zone MX names.
+
+- Adds additional A records and authoritative NS records for all given
+  nameservers.
+
+- All records have the same nameservers.
+
+- Reads in 1 to 10 nameservers from environment variables NS0 to NS9.
