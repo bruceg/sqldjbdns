@@ -3,6 +3,8 @@ Changes in version 0.70
 
 - Majorly revised the SQL schema.  See sqldns-schema.html for details.
 
+- Added support for TXT records.
+
 - Changed default TTL for NS records to three days.
 
 - Removed random ordering functionality, since it was not truely random:
