@@ -32,5 +32,5 @@ rm -rf $RPM_BUILD_ROOT
 
 %files
 %defattr(-,root,root)
-%doc README STATUS TODO *.html
+%doc ANNOUNCEMENT NEWS README STATUS TODO *.html
 /usr/bin/*
