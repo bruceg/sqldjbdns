@@ -25,7 +25,6 @@ struct nameserver
 
 static char in_addr_arpa[] = "\7in-addr\4arpa";
 
-static unsigned random_offset;
 static struct timeval now;
 
 static unsigned nameserver_count;
@@ -117,7 +116,7 @@ static void parse_nameservers(void)
   nameserver_count = j;
 }
 
-void env_get_ulong(char* env, unsigned long* out, unsigned long dflt)
+static void env_get_ulong(char* env, unsigned long* out, unsigned long dflt)
 {
   char* tmp = env_get(env);
   if(!tmp) return;
@@ -131,10 +130,6 @@ void env_get_ulong(char* env, unsigned long* out, unsigned long dflt)
 void initialize(void)
 {
   char* env;
-#if 0
-  char seed[128];
-  dns_random_init(seed);
-#endif
   parse_nameservers();
   sql_connect();
   env_get_ulong("NS_IP_TTL",   &ns_ip_ttl,   DEFAULT_NS_IP_TTL);
@@ -289,12 +284,10 @@ static int respond_nameservers(int authority)
 {
   unsigned i;
   if(!sent_NS) {
-    for(i = 0; i < nameserver_count; i++) {
-      unsigned j = (i + random_offset) % nameserver_count;
+    for(i = 0; i < nameserver_count; i++)
       if(!response_NS(domain_name.s, ns_name_ttl,
-		      nameservers[j].name.s, authority))
+		      nameservers[i].name.s, authority))
 	return 0;
-    }
   }
   sent_NS = 1;
   return 1;
@@ -353,14 +346,14 @@ static int query_forward(char* q)
   
   if(lookup_A) {
     for(row = 0; row < tuples; row++) {
-      rec = sql_records + (row + random_offset) % tuples;
+      rec = sql_records + row;
       if(rec->type == DNS_NUM_A)
 	if(!response_A(q, rec->ttl, rec->ip, 0)) return 0;
     }
   }
   if(lookup_MX) {
     for(row = 0; row < tuples; row++) {
-      rec = sql_records + (row + random_offset) % tuples;
+      rec = sql_records + row;
       if(rec->type == DNS_NUM_MX) {
 	if(!qualified(rec->name.s))
 	  if(!dns_domain_join(&rec->name, &domain_name)) return 0;
@@ -429,7 +422,7 @@ static int query_reverse(unsigned char* q)
   return response_PTR(q, rec->ttl, rec->name.s);
 }
 
-int respond_additional(void)
+static int respond_additional(void)
 {
   unsigned i;
   if(additional.len) {
@@ -447,9 +440,8 @@ int respond_additional(void)
     }
   }
   for(i = 0; i < nameserver_count; i++) {
-    unsigned j = (i + random_offset) % nameserver_count;
-    if(!response_A(nameservers[j].name.s, ns_ip_ttl,
-		   nameservers[j].ip, 1))
+    if(!response_A(nameservers[i].name.s, ns_ip_ttl,
+		   nameservers[i].ip, 1))
       return 0;
   }
   return 1;
@@ -457,9 +449,7 @@ int respond_additional(void)
 
 int respond(char *q, unsigned char qtype[2] /*, char srcip[4] */)
 {
-  /* random_offset = dns_random(~0U); */
   gettimeofday(&now, 0);
-  random_offset = now.tv_usec;
   
   lookup_A = 0;
   lookup_MX = 0;
