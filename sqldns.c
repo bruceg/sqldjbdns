@@ -58,9 +58,9 @@ static unsigned long domain_id;
 static stralloc domain_name;
 static stralloc domain_prefix;
 
-static stralloc dns_name;
+static stralloc scratch;
 
-int name_to_dns(stralloc* dns, char* name)
+static int name_to_dns(stralloc* dns, char* name)
      /* Convert the given text domain name into DNS binary format. */
 {
   if(!stralloc_copys(dns, "")) return 0;
@@ -238,13 +238,13 @@ static int response_PTR(char* q, unsigned long ttl, char* name)
 
 static int response_SOA(int authority)
 {
-  if(!stralloc_copy(&dns_name, &soa_mailbox)) return 0;
-  if(!qualified(dns_name.s))
-    if(!stralloc_cat_domain(&dns_name, &domain_name)) return 0;
+  if(!stralloc_copy(&scratch, &soa_mailbox)) return 0;
+  if(!qualified(scratch.s))
+    if(!stralloc_cat_domain(&scratch, &domain_name)) return 0;
 
   if(!response_rstartn(domain_name.s,DNS_T_SOA,soa_ttl)) return 0;
   if(!response_addname(nameservers[0].name.s)) return 0;
-  if(!response_addname(dns_name.s)) return 0;
+  if(!response_addname(scratch.s)) return 0;
   if(!response_addulong(now.tv_sec)) return 0;
   if(!response_addulong(soa_refresh)) return 0;
   if(!response_addulong(soa_retry)) return 0;
@@ -266,7 +266,8 @@ static int dns_domain_join(stralloc* prefix, stralloc* domain)
 static int query_domain(char* q)
 {
   char* domain;
-  if(!sql_select_domain(q, &domain_id, &domain_name)) return 0;
+  if(!sql_select_domain(q, &domain_id, &scratch)) return 0;
+  if(!name_to_dns(&domain_name, scratch.s)) return 0;
   
   domain = dns_domain_suffix(q, domain_name.s);
   
@@ -355,14 +356,15 @@ static int query_forward(char* q)
     for(row = 0; row < tuples; row++) {
       rec = sql_records + row;
       if(rec->type == DNS_NUM_MX) {
-	if(!qualified(rec->name.s))
-	  if(!dns_domain_join(&rec->name, &domain_name)) return 0;
-	if(!response_MX(q, rec->ttl, rec->distance, rec->name.s)) return 0;
+	if(!name_to_dns(&scratch, rec->name.s)) return 0;
+	if(!qualified(scratch.s))
+	  if(!dns_domain_join(&scratch, &domain_name)) return 0;
+	if(!response_MX(q, rec->ttl, rec->distance, scratch.s)) return 0;
 	/* If the domain of the added name matches the current domain,
 	 * add an additional A record */
-	domain = dns_domain_suffix(rec->name.s, domain_name.s);
+	domain = dns_domain_suffix(scratch.s, domain_name.s);
 	if(domain) {
-	  if(!stralloc_catb(&additional, rec->name.s, domain-rec->name.s))
+	  if(!stralloc_catb(&additional, scratch.s, domain-scratch.s))
 	    return 0;
 	  if(!stralloc_0(&additional)) return 0;
 	}
