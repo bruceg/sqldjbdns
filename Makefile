@@ -4,7 +4,7 @@ VERSION = 0.70
 djbdns = djbdns-1.02
 
 CC = gcc
-CFLAGS = -O2 -W -Wall -I$(djbdns) -g
+CFLAGS = -O2 -W -Wall -I$(djbdns) -g -USQL_LOG
 install = /usr/bin/install
 
 install_prefix =
