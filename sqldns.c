@@ -60,7 +60,7 @@ static stralloc domain_prefix;
 
 static stralloc scratch;
 
-static int name_to_dns(stralloc* dns, char* name)
+static int name_to_dns(stralloc* dns, char* name, int split)
      /* Convert the given text domain name into DNS binary format. */
 {
   if(!stralloc_copys(dns, "")) return 0;
@@ -69,11 +69,18 @@ static int name_to_dns(stralloc* dns, char* name)
   while(*name) {
     char* start = name;
     unsigned char tmp[1];
+    unsigned length;
+
     while(*name && *name != '.')
       ++name;
-    tmp[0] = name - start;
-    if(!stralloc_catb(dns, tmp, 1)) return 0;
-    if(!stralloc_catb(dns, start, tmp[0])) return 0;
+    length = name - start;
+    if(length >= 127 && !split) return 0;
+    while(length) {
+      tmp[0] = length > 127 ? 127 : length;
+      if(!stralloc_catb(dns, tmp, 1)) return 0;
+      if(!stralloc_catb(dns, start, tmp[0])) return 0;
+      length -= tmp[0];
+    }
     while(*name == '.')
       ++name;
   }
@@ -88,7 +95,7 @@ static int parse_nameserver(unsigned ns, char* env)
   len = str_chr(env, ':');
   if(!len || len > 255) return 0;
   env[len] = 0;
-  if(!name_to_dns(&nsptr->name, env)) return 0;
+  if(!name_to_dns(&nsptr->name, env, 0)) return 0;
   env += len+1;
   if(!(len = ip4_scan(env, nsptr->ip))) return 0;
   env += len;
@@ -142,7 +149,7 @@ void initialize(void)
   env = env_get("SOA_MAILBOX");
   if(!env)
     env = DEFAULT_SOA_MAILBOX;
-  if(!name_to_dns(&soa_mailbox, env))
+  if(!name_to_dns(&soa_mailbox, env, 0))
     strerr_die2x(111,fatal,"Could not create initial SOA mailbox string");
 }
 
@@ -267,7 +274,7 @@ static int query_domain(char* q)
 {
   char* domain;
   if(!sql_select_domain(q, &domain_id, &scratch)) return 0;
-  if(!name_to_dns(&domain_name, scratch.s)) return 0;
+  if(!name_to_dns(&domain_name, scratch.s, 0)) return 0;
   
   domain = dns_domain_suffix(q, domain_name.s);
   
@@ -356,7 +363,7 @@ static int query_forward(char* q)
     for(row = 0; row < tuples; row++) {
       rec = sql_records + row;
       if(rec->type == DNS_NUM_MX) {
-	if(!name_to_dns(&scratch, rec->name.s)) return 0;
+	if(!name_to_dns(&scratch, rec->name.s, 0)) return 0;
 	if(!qualified(scratch.s))
 	  if(!dns_domain_join(&scratch, &domain_name)) return 0;
 	if(!response_MX(q, rec->ttl, rec->distance, scratch.s)) return 0;
