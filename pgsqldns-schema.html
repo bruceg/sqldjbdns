@@ -1,0 +1,47 @@
+<html>
+<body>
+<h1>The pgsqldns SQL Schema</h1>
+
+<p><tt>pgsqldns</tt> makes use of two tables, <tt>domain</tt> and
+<tt>entry</tt>.</p>
+
+<p><tt>domain</tt> must contain at least the following fields:<ul>
+
+<li>id INT NOT NULL PRIMARY KEY
+
+<li>name TEXT NOT NULL
+
+</ul></p>
+
+<p><tt>entry</tt> must contain at least the following fields:<ul>
+
+<li>prefix TEXT NOT NULL
+
+<li>domain INT NOT NULL REFERENCES domain(id)
+
+<li>ttl INT NOT NULL
+
+<li>timestamp TIMESTAMP
+
+<li>ip INET
+
+<li>master_ip BOOL
+
+<li>mx_name1 TEXT
+
+<li>mx_name2 TEXT
+
+</ul> If <tt>timestamp</tt> is set and <tt>ttl</tt> is zero, the TTL
+sent in the record is set such that the record will expire no later
+than the given time, and after the given time is reached the record is
+no longer served out.  If <tt>timestamp</tt> is set and <tt>ttl</tt>
+is not zero, the record is only served out after the given time (with
+its TTL as indicated).</p>
+
+<p>These tables may contain any additional fields.  It is recommended
+to index on <tt>domain(name)</tt>, <tt>entry(prefix,domain)</tt>, and
+on <tt>entry(ip)</tt> for maximum performance, as these are the fields
+used as select keys.</p>
+
+</body>
+</html>

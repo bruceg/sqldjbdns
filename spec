@@ -18,6 +18,7 @@ from a set of SQL tables.
 
 %prep
 %setup
+gzip -dc %{SOURCE1} | tar -xf -
 
 %build
 make

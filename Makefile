@@ -36,7 +36,10 @@ pgsqldns.o: pgsqldns.c sqldns.h $(djbdns)/uint64.h Makefile
 sqldns.o: sqldns.c sqldns.h $(djbdns)/uint64.h Makefile
 sqlschema.o: sqlschema.c sqldns.h $(djbdns)/uint64.h Makefile
 
-$(djbdns)/dns.a $(djbdns)/uint64.h: $(djbdns)
+$(djbdns)/dns.a: $(djbdns)/dns_domain.c
+	$(MAKE) -C $(djbdns)
+
+$(djbdns)/uint64.h: $(djbdns)/tryulong64.c
 	$(MAKE) -C $(djbdns)
 
 clean:

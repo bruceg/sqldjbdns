@@ -1,11 +1,5 @@
-- Put proper values in for the "hostmaster" string in SOA responses.
-
-- Parse name and IP TTL values for the nameservers.
-
-- Produce documentation pages.
-
 - Document the source code better.
 
-- Build a sqldns-conf program.
+- Build a pgsqldns-conf program.
 
-- Parse values for the SOA at startup.
+- Serve out other record types.
