@@ -191,21 +191,13 @@ static int response_addushort(unsigned short num)
   return response_addbytes(bytes, 2);
 }
 
-/* Convert ttl to bytes and call response_rstart */
-static int response_rstartn(char* q, char type[2], unsigned long ttl)
-{
-  char ttl_bytes[4];
-  ulong_to_bytes(ttl, ttl_bytes);
-  return response_rstart(q,type,ttl_bytes);
-}
-
 static unsigned records;
 static stralloc additional;
 
 /* Build a complete A response */
 static int response_A(char* q, unsigned long ttl, char ip[4], int additional)
 {
-  if(!response_rstartn(q,DNS_T_A,ttl)) return 0;
+  if(!response_rstart(q,DNS_T_A,ttl)) return 0;
   if(!response_addbytes(ip, 4)) return 0;
   response_rfinish(additional ? RESPONSE_ADDITIONAL : RESPONSE_ANSWER);
   ++records;
@@ -215,7 +207,7 @@ static int response_A(char* q, unsigned long ttl, char ip[4], int additional)
 /* Build a complete MX response */
 static int response_MX(char* q, unsigned long ttl, unsigned dist, char* name)
 {
-  if(!response_rstartn(q,DNS_T_MX,ttl)) return 0;
+  if(!response_rstart(q,DNS_T_MX,ttl)) return 0;
   if(!response_addushort(dist)) return 0;
   if(!response_addname(name)) return 0;
   response_rfinish(RESPONSE_ANSWER);
@@ -225,7 +217,7 @@ static int response_MX(char* q, unsigned long ttl, unsigned dist, char* name)
 
 static int response_NS(char* q, unsigned long ttl, char* ns, int authority)
 {
-  if(!response_rstartn(q,DNS_T_NS,ttl)) return 0;
+  if(!response_rstart(q,DNS_T_NS,ttl)) return 0;
   if(!response_addname(ns)) return 0;
   response_rfinish(authority ? RESPONSE_AUTHORITY : RESPONSE_ANSWER);
   ++records;
@@ -234,7 +226,7 @@ static int response_NS(char* q, unsigned long ttl, char* ns, int authority)
 
 static int response_PTR(char* q, unsigned long ttl, char* name)
 {
-  if(!response_rstartn(q,DNS_T_PTR,ttl)) return 0;
+  if(!response_rstart(q,DNS_T_PTR,ttl)) return 0;
   if(!response_addname(name)) return 0;
   response_rfinish(RESPONSE_ANSWER);
   ++records;
@@ -247,7 +239,7 @@ static int response_SOA(int authority)
   if(!qualified(scratch.s))
     if(!stralloc_cat_domain(&scratch, &domain_name)) return 0;
 
-  if(!response_rstartn(domain_name.s,DNS_T_SOA,soa_ttl)) return 0;
+  if(!response_rstart(domain_name.s,DNS_T_SOA,soa_ttl)) return 0;
   if(!response_addname(nameservers[0].name.s)) return 0;
   if(!response_addname(scratch.s)) return 0;
   if(!response_addulong(now.tv_sec)) return 0;
@@ -262,7 +254,7 @@ static int response_SOA(int authority)
 
 static int response_TXT(char* q, unsigned long ttl, char* text)
 {
-  if(!response_rstartn(q,DNS_T_TXT,ttl)) return 0;
+  if(!response_rstart(q,DNS_T_TXT,ttl)) return 0;
   if(!response_addname(text)) return 0;
   response_rfinish(RESPONSE_ANSWER);
   ++records;
@@ -279,15 +271,15 @@ static int dns_domain_join(stralloc* prefix, stralloc* domain)
 
 static int query_domain(char* q)
 {
-  char* domain;
+  int domainpos;
   if(!sql_select_domain(q, &scratch)) return 0;
   if(!name_to_dns(&domain_name, scratch.s, 0)) return 0;
   
-  domain = dns_domain_suffix(q, domain_name.s);
+  domainpos = dns_domain_suffixpos(q, domain_name.s);
   
   /* domain now points to the suffix part of the input query */
   /* Copy the first part of the query into domain_prefix */
-  if(!stralloc_copyb(&domain_prefix, q, domain-q)) return 0;
+  if(!stralloc_copyb(&domain_prefix, q, domainpos)) return 0;
   if(!stralloc_0(&domain_prefix)) return 0;
   
   sql_record_sort();
@@ -320,7 +312,7 @@ static int lookup_TXT;
 static int query_forward(char* q)
 {
   unsigned row;
-  char* domain;
+  int domainpos;
   sql_record* rec;
   sql_record* head;
   unsigned count;
@@ -372,9 +364,9 @@ static int query_forward(char* q)
       if(!response_MX(q, rec->ttl, rec->distance, scratch.s)) return 0;
       /* If the domain of the added name matches the current domain,
        * add an additional A record */
-      domain = dns_domain_suffix(scratch.s, domain_name.s);
-      if(domain) {
-	if(!stralloc_catb(&additional, scratch.s, domain-scratch.s))
+      domainpos = dns_domain_suffixpos(scratch.s, domain_name.s);
+      if(domainpos) {
+	if(!stralloc_catb(&additional, scratch.s, domainpos))
 	  return 0;
 	if(!stralloc_0(&additional)) return 0;
       }

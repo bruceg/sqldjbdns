@@ -1,7 +1,7 @@
 PACKAGE = sqldjbdns
 VERSION = 0.70
 
-djbdns = djbdns-1.02
+djbdns = djbdns-1.04
 
 CC = gcc
 CFLAGS = -O2 -W -Wall -I$(djbdns) -g -USQL_LOG
