@@ -85,80 +85,27 @@ static int stralloc_cat_dns_to_sql(stralloc* s, char* name)
 
 static stralloc sql_query = {0,0,0};
 
-int sql_select_domain(char* domain, unsigned long* id, stralloc* name)
-{
-  unsigned i;
-  
-  if(!stralloc_copys(&sql_query,
-		     "SELECT id,name "
-		     "FROM domain "
-		     "WHERE name="))
-    return 0;
-  for(i = 0; *domain; ++i, domain += *domain+1) {
-    if(i)
-      if(!stralloc_cats(&sql_query, " OR name=")) return 0;
-    if(!stralloc_cat_dns_to_sql(&sql_query, domain)) return 0;
-  }
-  if(!stralloc_cats(&sql_query,
-		    " ORDER BY length(name) DESC LIMIT 1"))
-    return 0;
-  if(!stralloc_0(&sql_query)) return 0;
-  sql_exec(sql_query.s);
-  if(sql_ntuples() != 1) return 0;
-  if(!sql_fetch_ulong(0, 0, id)) return 0;
-  if(!sql_fetch_stralloc(0, 1, name)) return 0;
-  return name->len > 1;
-}
-
-static int stralloc_cat_prefixes(stralloc* q, stralloc* prefixes)
-{
-  char* ptr;
-  unsigned len;
-  int first;
-  unsigned left;
-  
-  ptr = prefixes->s;
-  left = prefixes->len;
-  first = 1;
-
-  while(left) {
-    if(!first && !stralloc_cats(q, " OR ")) return 0;
-    if(!stralloc_cats(q, "prefix=")) return 0;
-    if(!stralloc_cat_dns_to_sql(q, ptr)) return 0;
-    len = dns_domain_length(ptr);
-    ptr += len;
-    left -= len;
-    first = 0;
-  }
-  return 1;
-}
-
-unsigned sql_select_entries(unsigned long domain, stralloc* prefixes)
+static unsigned sql_select_entries(unsigned long domain)
 {
   unsigned tuples;
   unsigned rtuples;
   unsigned i;
   sql_record* rec;
   
-  if(!prefixes->len) return 0;
-
   if(!stralloc_copys(&sql_query,
 		     "SELECT prefix,type,ttl,date_part('epoch',timestamp),"
 		     "ip,distance,name "
 		     "FROM entry "
 		     "WHERE domain=")) return 0;
   if(!stralloc_catulong0(&sql_query, domain, 0)) return 0;
-  if(!stralloc_cats(&sql_query, " AND (")) return 0;
-  if(!stralloc_cat_prefixes(&sql_query, prefixes)) return 0;
-  if(!stralloc_catb(&sql_query, ")", 2)) return 0;
+  if(!stralloc_0(&sql_query)) return 0;
   sql_exec(sql_query.s);
 
   tuples = sql_ntuples();
   if(!tuples) return 0;
 
-  sql_record_alloc(tuples);
-  rec = sql_records;
-  for(i = sql_record_count = 0; i < tuples; i++) {
+  rec = sql_record_alloc(tuples);
+  for(i = rtuples = 0; i < tuples; i++) {
     if(!sql_fetch_stralloc(i, 0, &rec->prefix)) continue;
     if(!sql_fetch_ulong(i, 1, &rec->type)) continue;
     if(!sql_fetch_ulong(i, 2, &rec->ttl)) rec->ttl = 0;
@@ -179,15 +126,44 @@ unsigned sql_select_entries(unsigned long domain, stralloc* prefixes)
       continue;
     }
     ++rec;
-    ++sql_record_count;
+    ++rtuples;
   }
   /* Return a single bogus record if no data was produced
    * but the prefix was found */
-  if(!sql_record_count) {
+  if(!rtuples) {
     rec->type = 0;
-    ++sql_record_count;
+    ++rtuples;
   }
-  return sql_record_count;
+  return rtuples;
+}
+
+int sql_select_domain(char* domain, stralloc* name)
+{
+  unsigned i;
+  unsigned long id;
+
+  if(!stralloc_copys(&sql_query,
+		     "SELECT id,name "
+		     "FROM domain "
+		     "WHERE name="))
+    return 0;
+  for(i = 0; *domain; ++i, domain += *domain+1) {
+    if(i)
+      if(!stralloc_cats(&sql_query, " OR name=")) return 0;
+    if(!stralloc_cat_dns_to_sql(&sql_query, domain)) return 0;
+  }
+  if(!stralloc_cats(&sql_query,
+		    " ORDER BY length(name) DESC LIMIT 1"))
+    return 0;
+  if(!stralloc_0(&sql_query)) return 0;
+  sql_exec(sql_query.s);
+  if(sql_ntuples() != 1) return 0;
+  if(!sql_fetch_ulong(0, 0, &id)) return 0;
+  if(!sql_fetch_stralloc(0, 1, name)) return 0;
+  if(name->len <= 1) return 0;
+  sql_record_count = sql_select_entries(id);
+  if(!sql_record_count) return 0;
+  return 1;
 }
 
 unsigned sql_select_ip4(char ip[4])

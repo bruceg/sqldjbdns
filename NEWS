@@ -1,4 +1,9 @@
 -------------------------------------------------------------------------------
+Changes in version 0.XX
+
+- The SQL code now selects all the records for a domain at once, to make
+  processing of additional records faster.
+-------------------------------------------------------------------------------
 Changes in version 0.70
 
 - Majorly revised the SQL schema.  See sqldns-schema.html for details.

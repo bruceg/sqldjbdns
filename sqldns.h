@@ -16,11 +16,10 @@
 struct sql_record 
 {
   stralloc prefix;
-  uint32 prefix_hash;
 
-  /* Prefix grouping pointers */
-  struct sql_record* next_record;
-  struct sql_record* next_prefix;
+  /* Prefix grouping information */
+  uint32 prefix_hash;
+  unsigned prefix_count;
   
   /* Data for this record */
   unsigned long type;
@@ -36,8 +35,9 @@ typedef struct sql_record sql_record;
 extern sql_record* sql_records;
 extern unsigned sql_record_size;
 extern unsigned sql_record_count;
-void sql_record_alloc(unsigned size);
+sql_record* sql_record_alloc(unsigned size);
 void sql_record_sort(void);
+sql_record* sql_record_select(char* prefix);
 
 #define SQLNULL ((unsigned)-1)
 
@@ -48,8 +48,7 @@ unsigned sql_fetch(unsigned row, unsigned col, char** result);
 unsigned sql_ntuples(void);
 
 /* Defined by the SQL schema module */
-int sql_select_domain(char* domain, unsigned long* id, stralloc* name);
-unsigned sql_select_entries(unsigned long domain, stralloc* prefixes);
+int sql_select_domain(char* domain, stralloc* name);
 unsigned sql_select_ip4(char ip[4]);
 
 #endif

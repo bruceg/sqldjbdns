@@ -52,7 +52,6 @@ static unsigned long soa_expire;
 static unsigned long soa_minimum;
 static stralloc soa_mailbox;
 
-static unsigned long domain_id;
 static stralloc domain_name;
 static stralloc domain_prefix;
 
@@ -281,7 +280,7 @@ static int dns_domain_join(stralloc* prefix, stralloc* domain)
 static int query_domain(char* q)
 {
   char* domain;
-  if(!sql_select_domain(q, &domain_id, &scratch)) return 0;
+  if(!sql_select_domain(q, &scratch)) return 0;
   if(!name_to_dns(&domain_name, scratch.s, 0)) return 0;
   
   domain = dns_domain_suffix(q, domain_name.s);
@@ -291,6 +290,8 @@ static int query_domain(char* q)
   if(!stralloc_copyb(&domain_prefix, q, domain-q)) return 0;
   if(!stralloc_0(&domain_prefix)) return 0;
   
+  sql_record_sort();
+
   return 1;
 }
 
@@ -321,13 +322,16 @@ static int query_forward(char* q)
   unsigned row;
   char* domain;
   sql_record* rec;
-  
-  if(!sql_select_entries(domain_id, &domain_prefix)) {
+  sql_record* head;
+  unsigned count;
+
+  head = sql_record_select(domain_prefix.s);
+  if(!head) {
     response_nxdomain();
     return 1;
   }
-
-  sql_record_sort();
+  count = head->prefix_count;
+  
   if(domain_prefix.len == 1) {
     if(lookup_SOA)
       if(!response_SOA(0)) return 0;
@@ -338,8 +342,7 @@ static int query_forward(char* q)
   /* Handle timestamps:
    * if TTL=0, timestamp indicates when the record expires
    * otherwise, timestamp indicates when the record should appear */
-  for(row = 0; row < sql_record_count; row++) {
-    rec = sql_records + row;
+  for(row = 0, rec = head; row < count; ++row, ++rec) {
     if(rec->timestamp) {
       if(rec->ttl) {
 	if(rec->timestamp > now.tv_sec)
@@ -359,7 +362,7 @@ static int query_forward(char* q)
       rec->ttl = DEFAULT_TTL;
   }
   
-  for(row = 0, rec = sql_records; row < sql_record_count; row++, rec++) {
+  for(row = 0, rec = head; row < count; ++row, ++rec) {
     if(lookup_A && rec->type == DNS_NUM_A)
       if(!response_A(q, rec->ttl, rec->ip, 0)) return 0;
     if(lookup_MX && rec->type == DNS_NUM_MX) {
@@ -430,26 +433,28 @@ static int query_reverse(unsigned char* q)
     return 1;
   }
 
-  rec = &sql_records[0];
+  rec = sql_records;
   return response_PTR(q, rec->ttl, rec->name.s);
 }
 
 static int respond_additional(void)
 {
   unsigned i;
-  if(additional.len) {
-    /* Optimization: Don't do an additional SQL query if
-     * the additional record is exactly the same as the original query */
-    if(additional.len != domain_prefix.len ||
-       byte_diff(additional.s, domain_prefix.len, domain_prefix))
-       sql_record_count = sql_select_entries(domain_id, &additional);
-    for(i = 0; i < sql_record_count; i++) {
-      sql_record* rec = &sql_records[i];
-      if(rec->type == DNS_NUM_A) {
-	if(!dns_domain_join(&rec->prefix, &domain_name)) return 0;
-	if(!response_A(rec->prefix.s,rec->ttl,rec->ip,1)) return 0;
+  char* prefix = additional.s;
+  unsigned left = additional.len;
+  while(left) {
+    sql_record* rec = sql_record_select(prefix);
+    unsigned len = dns_domain_length(prefix);
+    if(rec) {
+      for(i = 0; i < rec->prefix_count; i++) {
+	if(rec[i].type == DNS_NUM_A) {
+	  if(!dns_domain_join(&rec[i].prefix, &domain_name)) return 0;
+	  if(!response_A(rec->prefix.s,rec[i].ttl,rec->ip,1)) return 0;
+	}
       }
     }
+    left -= len;
+    prefix += len;
   }
   for(i = 0; i < nameserver_count; i++) {
     if(!response_A(nameservers[i].name.s, ns_ip_ttl,
