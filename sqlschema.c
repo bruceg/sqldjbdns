@@ -143,7 +143,8 @@ unsigned sql_select_entries(unsigned long domain, stralloc* prefixes)
   if(!prefixes->len) return 0;
 
   if(!stralloc_copys(&sql_query,
-		     "SELECT prefix,ttl,ip,mx_name1,mx_name2")) return 0;
+		     "SELECT prefix,ttl,date_part('epoch',timestamp),"
+		     "ip,mx_name1,mx_name2")) return 0;
   if(!stralloc_cats(&sql_query, " FROM entry WHERE domain=")) return 0;
   if(!stralloc_catulong0(&sql_query, domain, 0)) return 0;
   if(!stralloc_cats(&sql_query, " AND (")) return 0;
@@ -158,12 +159,13 @@ unsigned sql_select_entries(unsigned long domain, stralloc* prefixes)
   rec = sql_records;
   for(i = rtuples = 0; i < tuples; i++) {
     time_t ttl;
-    time_t timestamp = 0;
+    time_t timestamp;
     
     if(!sql_fetch_stralloc(i, 0, &scratch)) return 0;
     if(!sql_fetch_ulong(i, 1, &ttl)) continue;
+    if(!sql_fetch_ulong(i, 2, &timestamp)) timestamp = 0;
     
-    if(sql_fetch_ip4(i, 2, rec->ip)) {
+    if(sql_fetch_ip4(i, 3, rec->ip)) {
       if(!stralloc_copy(&rec->prefix, &scratch)) return 0;
       rec->type = DNS_NUM_A;
       rec->ttl = ttl;
@@ -171,7 +173,7 @@ unsigned sql_select_entries(unsigned long domain, stralloc* prefixes)
       ++rec;
       if(++rtuples > SQL_RECORD_MAX) break;
     }
-    if(sql_fetch_stralloc(i, 3, &rec->name)) {
+    if(sql_fetch_stralloc(i, 4, &rec->name)) {
       if(!stralloc_copy(&rec->prefix, &scratch)) return 0;
       rec->type = DNS_NUM_MX;
       rec->ttl = ttl;
@@ -180,7 +182,7 @@ unsigned sql_select_entries(unsigned long domain, stralloc* prefixes)
       ++rec;
       if(++rtuples > SQL_RECORD_MAX) break;
     }
-    if(sql_fetch_stralloc(i, 4, &rec->name)) {
+    if(sql_fetch_stralloc(i, 5, &rec->name)) {
       if(!stralloc_copy(&rec->prefix, &scratch)) return 0;
       rec->type = DNS_NUM_MX;
       rec->ttl = ttl;

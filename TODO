@@ -9,5 +9,3 @@
 - Build a sqldns-conf program.
 
 - Parse values for the SOA at startup.
-
-- Implement the timestamp field in the schema.
