@@ -9,9 +9,20 @@
 #define DNS_NUM_TXT 16
 #define DNS_NUM_ANY 255
 
+#include "cdb.h"
+#include "stralloc.h"
+#include <sys/time.h>
+
 struct sql_record 
 {
   stralloc prefix;
+  uint32 prefix_hash;
+
+  /* Prefix grouping pointers */
+  struct sql_record* next_record;
+  struct sql_record* next_prefix;
+  
+  /* Data for this record */
   unsigned long type;
   time_t ttl;
   char ip[4];
@@ -21,8 +32,12 @@ struct sql_record
 };
 typedef struct sql_record sql_record;
 
-#define SQL_RECORD_MAX 256
-extern sql_record sql_records[SQL_RECORD_MAX];
+/* Defined by the SQL record module */
+extern sql_record* sql_records;
+extern unsigned sql_record_size;
+extern unsigned sql_record_count;
+void sql_record_alloc(unsigned size);
+void sql_record_sort(void);
 
 #define SQLNULL ((unsigned)-1)
 

@@ -156,8 +156,9 @@ unsigned sql_select_entries(unsigned long domain, stralloc* prefixes)
   tuples = sql_ntuples();
   if(!tuples) return 0;
 
+  sql_record_alloc(tuples);
   rec = sql_records;
-  for(i = rtuples = 0; i < tuples && rtuples < SQL_RECORD_MAX; i++) {
+  for(i = sql_record_count = 0; i < tuples; i++) {
     if(!sql_fetch_stralloc(i, 0, &rec->prefix)) continue;
     if(!sql_fetch_ulong(i, 1, &rec->type)) continue;
     if(!sql_fetch_ulong(i, 2, &rec->ttl)) rec->ttl = 0;
@@ -178,17 +179,15 @@ unsigned sql_select_entries(unsigned long domain, stralloc* prefixes)
       continue;
     }
     ++rec;
-    ++rtuples;
+    ++sql_record_count;
   }
-  if(rtuples < SQL_RECORD_MAX)
-    rec->type = 0;
   /* Return a single bogus record if no data was produced
    * but the prefix was found */
-  if(!rtuples) {
+  if(!sql_record_count) {
     rec->type = 0;
-    ++rtuples;
+    ++sql_record_count;
   }
-  return rtuples;
+  return sql_record_count;
 }
 
 unsigned sql_select_ip4(char ip[4])

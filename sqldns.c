@@ -12,8 +12,6 @@
 #include <unistd.h>
 #include "sqldns.h"
 
-sql_record sql_records[SQL_RECORD_MAX];
-
 char *fatal = "pgsqldns: fatal: ";
 char *warning = "pgsqldns: warning: ";
 
@@ -298,38 +296,6 @@ static int query_domain(char* q)
 
 static int sent_NS;
 
-/* The call to dns_random will cause the sorted data set to have like items
- * put into a randomized order */
-static int cmp_records(const sql_record* a, const sql_record* b)
-{
-  int c = a->type - b->type;
-  if(!c)
-    c = dns_random(3) - 1;
-  return c;
-}
-
-/* I used a simple insertion sort here since:
- * 1. the number of records is small
- * 2. qsort has a high overhead time for small counts
- * 3. comparisons are fast
- * 4. swapping elements (due to the record size) is slow */
-static void sort_sql_records(unsigned count)
-{
-  unsigned i;
-  for(i = 0; i < count-1; i++) {
-    sql_record* jmax = sql_records + i;
-    unsigned j;
-    for(j = i+1; j < count; j++)
-      if(cmp_records(sql_records+j, jmax) < 0)
-	jmax = sql_records+j;
-    if(jmax != sql_records+i) {
-      sql_record tmp = sql_records[i];
-      sql_records[i] = *jmax;
-      *jmax = tmp;
-    }
-  }
-}
-
 static int respond_nameservers(int authority)
 {
   unsigned i;
@@ -350,21 +316,18 @@ static int lookup_PTR;
 static int lookup_SOA;
 static int lookup_TXT;
 
-static unsigned tuples;
-
 static int query_forward(char* q)
 {
   unsigned row;
   char* domain;
   sql_record* rec;
   
-  tuples = sql_select_entries(domain_id, &domain_prefix);
-  if(!tuples) {
+  if(!sql_select_entries(domain_id, &domain_prefix)) {
     response_nxdomain();
     return 1;
   }
 
-  sort_sql_records(tuples);
+  sql_record_sort();
   if(domain_prefix.len == 1) {
     if(lookup_SOA)
       if(!response_SOA(0)) return 0;
@@ -375,7 +338,7 @@ static int query_forward(char* q)
   /* Handle timestamps:
    * if TTL=0, timestamp indicates when the record expires
    * otherwise, timestamp indicates when the record should appear */
-  for(row = 0; row < tuples; row++) {
+  for(row = 0; row < sql_record_count; row++) {
     rec = sql_records + row;
     if(rec->timestamp) {
       if(rec->ttl) {
@@ -396,7 +359,7 @@ static int query_forward(char* q)
       rec->ttl = DEFAULT_TTL;
   }
   
-  for(row = 0, rec = sql_records; row < tuples; row++, rec++) {
+  for(row = 0, rec = sql_records; row < sql_record_count; row++, rec++) {
     if(lookup_A && rec->type == DNS_NUM_A)
       if(!response_A(q, rec->ttl, rec->ip, 0)) return 0;
     if(lookup_MX && rec->type == DNS_NUM_MX) {
@@ -479,8 +442,8 @@ static int respond_additional(void)
      * the additional record is exactly the same as the original query */
     if(additional.len != domain_prefix.len ||
        byte_diff(additional.s, domain_prefix.len, domain_prefix))
-       tuples = sql_select_entries(domain_id, &additional);
-    for(i = 0; i < tuples; i++) {
+       sql_record_count = sql_select_entries(domain_id, &additional);
+    for(i = 0; i < sql_record_count; i++) {
       sql_record* rec = &sql_records[i];
       if(rec->type == DNS_NUM_A) {
 	if(!dns_domain_join(&rec->prefix, &domain_name)) return 0;

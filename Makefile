@@ -4,7 +4,7 @@ VERSION = 0.70
 djbdns = djbdns-1.02
 
 CC = gcc
-CFLAGS = -O2 -W -Wall -I$(djbdns) -g -USQL_LOG
+CFLAGS = -O2 -W -Wall -I$(djbdns) -g -DSQL_LOG
 install = /usr/bin/install
 
 install_prefix =
@@ -15,11 +15,11 @@ PROGS = pgsqldns pgsqldns-conf dnsbench
 
 default: $(PROGS)
 
-pgsqldns: pgsqldns.o sqldns.o sqlschema.o $(djbdns)/dns.a
+pgsqldns: pgsqldns.o sqldns.o sqlrecord.o sqlschema.o $(djbdns)/dns.a
 	cd $(djbdns) && ./load ../pgsqldns ../sqldns.o ../sqlschema.o \
-		server.o response.o droproot.o qlog.o prot.o dd.o dns.a \
-		env.a cdb.a alloc.a buffer.a unix.a byte.a libtai.a \
-		`cat socket.lib` -lpq
+		../sqlrecord.o server.o response.o droproot.o qlog.o \
+		prot.o dd.o dns.a env.a cdb.a alloc.a buffer.a \
+		unix.a byte.a libtai.a `cat socket.lib` -lpq
 
 pgsqldns-conf: pgsqldns-conf.o $(djbdns)/dns.a
 	cd $(djbdns) && ./load ../pgsqldns-conf generic-conf.o \
@@ -35,15 +35,16 @@ install: $(PROGS)
 	$(install) $(PROGS) $(bindir)
 
 dnsbench.o: dnsbench.c Makefile
-pgsqldns.o: pgsqldns.c sqldns.h $(djbdns)/uint64.h Makefile
-pgsqldns-conf.o: pgsqldns-conf.c $(djbdns)/uint64.h Makefile
-sqldns.o: sqldns.c sqldns.h $(djbdns)/uint64.h Makefile
-sqlschema.o: sqlschema.c sqldns.h $(djbdns)/uint64.h Makefile
+pgsqldns.o: pgsqldns.c sqldns.h $(djbdns)/uint32.h Makefile
+pgsqldns-conf.o: pgsqldns-conf.c $(djbdns)/uint32.h Makefile
+sqldns.o: sqldns.c sqldns.h $(djbdns)/uint32.h Makefile
+sqlrecord.o: sqlrecord.c sqldns.h $(djbdns)/uint32.h Makefile
+sqlschema.o: sqlschema.c sqldns.h $(djbdns)/uint32.h Makefile
 
 $(djbdns)/dns.a: $(djbdns)/dns_domain.c
 	$(MAKE) -C $(djbdns)
 
-$(djbdns)/uint64.h: $(djbdns)/tryulong64.c
+$(djbdns)/uint32.h: $(djbdns)/tryulong32.c
 	$(MAKE) -C $(djbdns)
 
 clean:
