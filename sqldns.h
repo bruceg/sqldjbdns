@@ -26,9 +26,6 @@ extern sql_record sql_records[SQL_RECORD_MAX];
 
 #define SQLNULL ((unsigned)-1)
 
-/* Helper functions defined in sqldns.c */
-int name_to_dns(stralloc* dns, char* name);
-
 /* Defined by the low-level SQL module */
 void sql_connect(void);
 void sql_exec(char* q);
