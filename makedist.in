@@ -43,14 +43,14 @@ VERSION_BASE=
 WEBSITE=em.ca
 
 # Set WEBDIR to the "public_html" directory under $WEBSITE (required).
-WEBDIR=www
+WEBDIR=www/sqldjbdns
 
 # Set RPMUPLOAD to a list of additional "hostname/path" destinations to
 # which to upload the source and binary RPMs.
-RPMUPLOAD=
+RPMUPLOAD=incoming.redhat.com/libc6
 
 # Set LIST to the mailing list(s) to send the announcement to (required).
-LIST=bgware@lists.em.ca,dns@list.cr.yp.to
+LIST="bgware@lists.em.ca dns@list.cr.yp.to"
 
 # Run any extra commands to prepare the source tree (such as making
 # documentation) here.

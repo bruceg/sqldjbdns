@@ -1,3 +1,5 @@
+- Rewrite the select entry code in sqlschema.c to handle the new schema.
+
 - Document the source code better.
 
 - Build a pgsqldns-conf program.

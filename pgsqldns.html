@@ -2,9 +2,9 @@
 <body>
 <h1>The pgsqldns program</h1>
 
-<p><tt>pgsqldns</tt> is a DNS server.  It accepts iterative DNS
-queries from hosts around the Internet, and responds with information
-derived from a set of PostgreSQL tables.</p>
+<p><tt>pgsqldns</tt> is a DNS server based on the <a
+href="sqldns.html">sqldns</a> framework, reading from PostgreSQL
+tables.</p>
 
 <h2>Configuration</h2>
 
@@ -12,47 +12,13 @@ derived from a set of PostgreSQL tables.</p>
 href="pgsqldns-conf.html"><tt>pgsqldns-conf</tt></a> program, but that
 program doesn't exist yet.</p>
 
-<p><tt>pgsqldns</tt> runs chrooted in the directory
-specified by the <tt>$ROOT</tt> environment variable,
-under the uid and gid
-specified by the <tt>$UID</tt> and <tt>$GID</tt> environment
-variables.</p>
-
-<p><tt>pgsqldns</tt> listens for incoming UDP packets
-addressed to port 53 of <tt>$IP</tt>.
-It does not listen for TCP queries.</p>
-
 <p><tt>pgsqldns</tt> connects to a PostgreSQL server as specified by
 <tt>$PGHOST</tt>, <tt>$PGPORT</tt>, <tt>$PGUSERNAME</tt>,
 <tt>$PGPASSWORD</tt>, and <tt>$PGDATABASE</tt>.  After connecting, it
 executes any commands found in <tt>$SQL_INITIALIZE</tt>.</p>
 
-<p>It loads in the nameserver names and IPs from <tt>NS0</tt> through
-<tt>NS9</tt>.  Each such nameserver must consist of a fully qualified
-domain name, a colon, and its IP.  The TTL for the additional A
-records is read from <tt>$NS_IP_TTL</tt>, and the TTL for the NS name
-records is read from <tt>$NS_NAME_TTL</tt>. Both values default to
-65536.</p>
-
-<p><tt>pgsqldns</tt> serves out an automatically generated SOA record
-for each domain listed in the tables.  The TTL, refresh, retry,
-expire, minimum, and mailbox values for this SOA are read from
-<tt>$SOA_TTL</tt>, <tt>$SOA_REFRESH</tt>, <tt>$SOA_RETRY</tt>,
-<tt>$SOA_EXPIRE</tt>, <tt>$SOA_MINIMUM</tt>, and
-<tt>$SOA_MAILBOX</tt>, which default to 2560, 4096, 256, 65536, 2560,
-and "<tt>hostmaster</tt>".  If the mailbox name is not qualified when
-the SOA record is generated, the domain name is appended to it.  The
-serial number is always set to the current UNIX epoch time.</p>
-
-<h2>Further details</h2>
-
-<p>The schema for <tt>pgsqldns</tt> is described <a
-href="pgsqldns-schema.html">here</a>.</p>
-
-<p>See also <a href="http://cr.yp.to/djbdns.html">the documentation
-for djbdns</a>, in particular <a
-href="http://cr.yp.to/djbdns/tinydns.html">the documentation for
-tinydns</a>, with which this program shares many features.
+<p>See <a href="sqldns.html">the sqldns documentation</a> for full
+configuration details.</p>
 
 </body>
 </html>

@@ -19,6 +19,8 @@
 
 <li>domain INT NOT NULL REFERENCES domain(id)
 
+<li>type INT NOT NULL
+
 <li>ttl INT NOT NULL
 
 <li>timestamp TIMESTAMP
@@ -27,16 +29,26 @@
 
 <li>master_ip BOOL
 
-<li>mx_name1 TEXT
+<li>distance INT
 
-<li>mx_name2 TEXT
+<li>name TEXT
 
-</ul> If <tt>timestamp</tt> is set and <tt>ttl</tt> is zero, the TTL
+</ul></p>
+
+<p>If <tt>timestamp</tt> is set and <tt>ttl</tt> is zero, the TTL
 sent in the record is set such that the record will expire no later
 than the given time, and after the given time is reached the record is
 no longer served out.  If <tt>timestamp</tt> is set and <tt>ttl</tt>
 is not zero, the record is only served out after the given time (with
 its TTL as indicated).</p>
+
+<p><tt>type</tt> must be one of the following:<ul>
+
+<li>1 == A (address)
+
+<li>15 == MX (mail exchanger)
+
+</ul>All other types are currently ignored.</p>
 
 <p>These tables may contain any additional fields.  It is recommended
 to index on <tt>domain(name)</tt>, <tt>entry(prefix,domain)</tt>, and
