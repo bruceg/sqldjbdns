@@ -28,9 +28,6 @@ static struct nameserver nameservers[10];
 
 #define DEFAULT_NS_NAME_TTL 86400
 #define DEFAULT_NS_IP_TTL 86400
-#define DEFAULT_PTR_TTL 2560
-
-static unsigned long ptr_ttl;
 
 static stralloc sql_query;
 
@@ -140,10 +137,6 @@ void initialize(void)
   env = env_get("SQLSETUP");
   if(env)
     sql_exec(env);
-
-  env = env_get("PTRTTL");
-  if(!env || env[scan_ulong(env, &ptr_ttl)] != 0)
-    ptr_ttl = DEFAULT_PTR_TTL;
 }
 
 static int stralloc_cat_dns_to_name(stralloc* s, char* name)
@@ -442,7 +435,8 @@ static int query_reverse(unsigned char* q)
   char* prefix;
   char* domain;
   char* ptr;
-
+  unsigned long ttl;
+  
   if(!lookup_PTR) return response_SOA(1);
   
   ptr = q;
@@ -472,7 +466,7 @@ static int query_reverse(unsigned char* q)
   /* Lookup the IP address in the database */
   ipstr[ip4_fmt(ipstr, ip)] = 0;
   if(!stralloc_copys(&sql_query,
-		     "SELECT prefix,name "
+		     "SELECT prefix,name,ttl "
 		     "FROM domain,entry "
 		     "WHERE entry.domain=domain.id "
 		     "AND master_ip='T' and ip='")) return 0;
@@ -497,7 +491,8 @@ static int query_reverse(unsigned char* q)
   if(!name_to_dns(sql_query.s, 0)) return 0;
   
   /* Produce a PTR response */
-  if(!response_PTR(q, ptr_ttl, dns_name.s)) return 0;
+  if(!sql_fetch_ulong(0, 2, &ttl)) return 0;
+  if(!response_PTR(q, ttl, dns_name.s)) return 0;
   return 1;
 }
 
