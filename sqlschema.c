@@ -37,8 +37,8 @@ static int sql_fetch_stralloc(unsigned row, unsigned col, stralloc* result)
   unsigned length;
 
   if((length = sql_fetch(row, col, &data)) == SQLNULL) return 0;
-  if(!length) return stralloc_copyb(result, "", 1);
-  return name_to_dns(result, data);
+  if(!stralloc_copyb(result, data, length)) return 0;
+  return stralloc_0(result);
 }
 
 static int stralloc_appendb(stralloc* s, char b)
@@ -173,6 +173,8 @@ unsigned sql_select_entries(unsigned long domain, stralloc* prefixes)
       if(!sql_fetch_stralloc(i, 6, &rec->name)) continue;
       break;
     case DNS_NUM_TXT:
+      if(!sql_fetch_stralloc(i, 6, &rec->name)) continue;
+      break;
     default:
       continue;
     }
