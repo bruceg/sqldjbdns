@@ -9,12 +9,18 @@ Source1: http://cr.yp.to/djbdns/djbdns-1.02.tar.gz
 BuildRoot: /tmp/sqldjbdns-root
 URL: http://em.ca/~bruceg/sqldjbdns/
 Packager: Bruce Guenter <bruceg@em.ca>
-Conflicts: bind
-Requires: postgresql
 
 %description
-Sqldjbdns is a new authoritative DNS server that pulls its data directly
+Sqldjbdns is an authoritative DNS server that pulls its data directly
 from a set of SQL tables.
+
+%package pgsql
+Summary: PostgreSQL based sqldns server
+Group: Networking/Daemons
+Requires: postgresql
+%description pgsql
+Pgsqldns is an authoritative DNS server that pulls its data directly
+from a set of PostgreSQL tables.
 
 %prep
 %setup
@@ -30,7 +36,7 @@ make install_prefix=$RPM_BUILD_ROOT install
 %clean
 rm -rf $RPM_BUILD_ROOT
 
-%files
+%files pgsql
 %defattr(-,root,root)
 %doc ANNOUNCEMENT NEWS README STATUS TODO *.html
-/usr/bin/*
+/usr/bin/pgsqldns*
