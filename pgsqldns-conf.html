@@ -29,7 +29,9 @@ to control the service.</p>
 <p><tt>pgsqldns-conf</tt> arranges for <tt>pgsqldns</tt> to chroot to
 <tt><i>D</i>/root</tt> and to run under the uid and gid of
 <tt><i>acct</i></tt>.  The name <tt><i>acct</i></tt> must not contain
-any special characters.</p>
+any special characters.  <tt>pgsqldns-conf</tt> also arranges for the
+PostgreSQL socket file(s) (typically <tt>/tmp/.s.PGSQL.5432</tt>) to
+be placed in the <tt>tmp</tt> directory in this root directory.</p>
 
 <p><tt>pgsqldns-conf</tt> arranges for <tt>pgsqldns</tt> to listen for
 UDP packets on port 53 of <tt><i>ip</i></tt>, and to send outgoing

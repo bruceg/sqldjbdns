@@ -46,6 +46,8 @@ int main(int argc, char **argv)
   start("run");
   outs("#!/bin/sh\n"
        "exec 2>&1\n"
+       "rm -f root/tmp/.s.PGSQL.*\n"
+       "ln /tmp/.s.PGSQL.* root/tmp\n"
        "exec envuidgid "); outs(user);
   outs(" envdir ./env softlimit -d2000000 ");
   outs(auto_home); outs("/bin/pgsqldns\n");
@@ -55,9 +57,8 @@ int main(int argc, char **argv)
   makedir("root");
   perm(02755);
 
-  start("root/data");
-  finish();
-  perm(0644);
-
+  makedir("root/tmp");
+  perm(0755);
+  
   _exit(0);
 }
