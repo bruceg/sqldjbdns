@@ -24,7 +24,7 @@ DOCS=
 
 # Set EXTRAS to a list of any other extra files that should go into the
 # base directory in the destination site.
-EXTRAS="README STATUS TODO *.html djbdns-1.02.tar.gz"
+EXTRAS="README STATUS TODO *.html"
 
 # Set EXTRAS_VER to a list of any other extra files that should go into
 # the version-numbered directory in the destination site.
@@ -32,7 +32,7 @@ EXTRAS_VER="ANNOUNCEMENT"
 
 # Set EXTRAS_DIST to a list of other extra files that should go into the
 # distribution tarball.
-EXTRAS_DIST="*.html"
+EXTRAS_DIST=
 
 # Set VERSION_BASE to the subdirectory into which the version-numbered
 # will be placed.
