@@ -298,6 +298,8 @@ static int query_domain(char* q)
 
 static int sent_NS;
 
+/* The call to dns_random will cause the sorted data set to have like items
+ * put into a randomized order */
 static int cmp_records(const sql_record* a, const sql_record* b)
 {
   int c = a->type - b->type;
@@ -306,6 +308,11 @@ static int cmp_records(const sql_record* a, const sql_record* b)
   return c;
 }
 
+/* I used a simple insertion sort here since:
+ * 1. the number of records is small
+ * 2. qsort has a high overhead time for small counts
+ * 3. comparisons are fast
+ * 4. swapping elements (due to the record size) is slow */
 static void sort_sql_records(unsigned count)
 {
   unsigned i;
