@@ -6,12 +6,13 @@
 #define DNS_NUM_SOA 6
 #define DNS_NUM_PTR 12
 #define DNS_NUM_MX 15
+#define DNS_NUM_TXT 16
 #define DNS_NUM_ANY 255
 
 struct sql_record 
 {
   stralloc prefix;
-  int type;
+  unsigned long type;
   time_t ttl;
   char ip[4];
   unsigned long distance;
