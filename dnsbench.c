@@ -1,5 +1,5 @@
-#include "dns.h"
-#include "scan.h"
+#include "djbdns/dns.h"
+#include "djbdns/scan.h"
 
 int main(int argc, char* argv[])
 {

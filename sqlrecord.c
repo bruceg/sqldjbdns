@@ -1,7 +1,7 @@
-#include "byte.h"
-#include "dns.h"
-#include "str.h"
-#include "strerr.h"
+#include "djbdns/byte.h"
+#include "djbdns/dns.h"
+#include "djbdns/str.h"
+#include "djbdns/strerr.h"
 #include <stdlib.h>
 #include "sqldns.h"
 

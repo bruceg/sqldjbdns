@@ -1,10 +1,10 @@
-#include "buffer.h"
-#include "dns.h"
-#include "env.h"
-#include "ip4.h"
-#include "scan.h"
-#include "stralloc.h"
-#include "strerr.h"
+#include "djbdns/buffer.h"
+#include "djbdns/dns.h"
+#include "djbdns/env.h"
+#include "djbdns/ip4.h"
+#include "djbdns/scan.h"
+#include "djbdns/stralloc.h"
+#include "djbdns/strerr.h"
 #include "sqldns.h"
 
 extern char* fatal;

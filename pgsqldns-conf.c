@@ -1,8 +1,8 @@
 #include <pwd.h>
-#include "strerr.h"
-#include "exit.h"
-#include "auto_home.h"
-#include "generic-conf.h"
+#include "djbdns/strerr.h"
+#include "djbdns/exit.h"
+#include "djbdns/auto_home.h"
+#include "djbdns/generic-conf.h"
 
 #define FATAL "pgsqldns-conf: fatal: "
 
