@@ -1,4 +1,5 @@
-- Rewrite the select entry code in sqlschema.c to handle the new schema.
+- Add support for TXT records: split the text into 127-byte chunks that
+  get encoded as DNS strings.
 
 - Document the source code better.
 
