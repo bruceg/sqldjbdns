@@ -37,6 +37,7 @@ static int sql_fetch_stralloc(unsigned row, unsigned col, stralloc* result)
   unsigned length;
 
   if((length = sql_fetch(row, col, &data)) == SQLNULL) return 0;
+  if(!length) return stralloc_copyb(result, "", 1);
   return name_to_dns(result, data);
 }
 
@@ -127,11 +128,10 @@ static int stralloc_cat_prefixes(stralloc* q, stralloc* prefixes)
     len = dns_domain_length(ptr);
     ptr += len;
     left -= len;
+    first = 0;
   }
   return 1;
 }
-
-static stralloc scratch;
 
 unsigned sql_select_entries(unsigned long domain, stralloc* prefixes)
 {
@@ -143,9 +143,10 @@ unsigned sql_select_entries(unsigned long domain, stralloc* prefixes)
   if(!prefixes->len) return 0;
 
   if(!stralloc_copys(&sql_query,
-		     "SELECT prefix,ttl,date_part('epoch',timestamp),"
-		     "ip,mx_name1,mx_name2")) return 0;
-  if(!stralloc_cats(&sql_query, " FROM entry WHERE domain=")) return 0;
+		     "SELECT prefix,type,ttl,date_part('epoch',timestamp),"
+		     "ip,distance,name "
+		     "FROM entry "
+		     "WHERE domain=")) return 0;
   if(!stralloc_catulong0(&sql_query, domain, 0)) return 0;
   if(!stralloc_cats(&sql_query, " AND (")) return 0;
   if(!stralloc_cat_prefixes(&sql_query, prefixes)) return 0;
@@ -157,41 +158,29 @@ unsigned sql_select_entries(unsigned long domain, stralloc* prefixes)
   if(!tuples) return 0;
 
   rec = sql_records;
-  for(i = rtuples = 0; i < tuples; i++) {
-    time_t ttl;
-    time_t timestamp;
+  for(i = rtuples = 0; i < tuples && rtuples < SQL_RECORD_MAX; i++) {
+    if(!sql_fetch_stralloc(i, 0, &rec->prefix)) continue;
+    if(!sql_fetch_ulong(i, 1, &rec->type)) continue;
+    if(!sql_fetch_ulong(i, 2, &rec->ttl)) rec->ttl = 0;
+    if(!sql_fetch_ulong(i, 3, &rec->timestamp)) rec->timestamp = 0;
     
-    if(!sql_fetch_stralloc(i, 0, &scratch)) return 0;
-    if(!sql_fetch_ulong(i, 1, &ttl)) continue;
-    if(!sql_fetch_ulong(i, 2, &timestamp)) timestamp = 0;
-    
-    if(sql_fetch_ip4(i, 3, rec->ip)) {
-      if(!stralloc_copy(&rec->prefix, &scratch)) return 0;
-      rec->type = DNS_NUM_A;
-      rec->ttl = ttl;
-      rec->timestamp = timestamp;
-      ++rec;
-      if(++rtuples > SQL_RECORD_MAX) break;
+    switch(rec->type) {
+    case DNS_NUM_A:
+      if(!sql_fetch_ip4(i, 4, rec->ip)) continue;
+      break;
+    case DNS_NUM_MX:
+      if(!sql_fetch_ulong(i, 5, &rec->distance)) continue;
+      if(!sql_fetch_stralloc(i, 6, &rec->name)) continue;
+      break;
+    case DNS_NUM_TXT:
+    default:
+      continue;
     }
-    if(sql_fetch_stralloc(i, 4, &rec->name)) {
-      if(!stralloc_copy(&rec->prefix, &scratch)) return 0;
-      rec->type = DNS_NUM_MX;
-      rec->ttl = ttl;
-      rec->distance = 1;
-      rec->timestamp = timestamp;
-      ++rec;
-      if(++rtuples > SQL_RECORD_MAX) break;
-    }
-    if(sql_fetch_stralloc(i, 5, &rec->name)) {
-      if(!stralloc_copy(&rec->prefix, &scratch)) return 0;
-      rec->type = DNS_NUM_MX;
-      rec->ttl = ttl;
-      rec->distance = 2;
-      rec->timestamp = timestamp;
-      ++rec;
-      if(++rtuples > SQL_RECORD_MAX) break;
-    }
+    ++rec;
+    ++rtuples;
   }
+  if(rtuples < SQL_RECORD_MAX)
+    rec->type = 0;
   /* Return a single bogus record if no data was produced
    * but the prefix was found */
   if(!rtuples) {
@@ -210,7 +199,9 @@ unsigned sql_select_ip4(char ip[4])
 		     "SELECT prefix,name,ttl "
 		     "FROM domain,entry "
 		     "WHERE entry.domain=domain.id "
-		     "AND master_ip='T' and ip='")) return 0;
+		     "AND type=1 "
+		     "AND master_ip='T' "
+		     "AND ip='")) return 0;
   if(!stralloc_catb(&sql_query, ipstr, ip4_fmt(ipstr, ip))) return 0;
   if(!stralloc_catb(&sql_query, "'", 2)) return 0;
   sql_exec(sql_query.s);
