@@ -30,8 +30,8 @@ static struct timeval now;
 static unsigned nameserver_count;
 static struct nameserver nameservers[10];
 
-#define DEFAULT_NS_NAME_TTL 65536
-#define DEFAULT_NS_IP_TTL 65536
+#define DEFAULT_NS_NAME_TTL 259200
+#define DEFAULT_NS_IP_TTL 259200
 #define DEFAULT_TTL 86400
 
 static unsigned long ns_name_ttl;
