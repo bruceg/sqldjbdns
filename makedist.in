@@ -1,0 +1,56 @@
+# Template makedist.in file
+
+# Set PKGURL to the full base URL for the package web site (required).
+PKGURL=http://em.ca/~bruceg/sqldjbdns/
+
+# If LISTSUB is not empty, makedist will add a note regarding
+# mailing list subscription.
+LISTSUB=bgware-subscribe@lists.em.ca
+
+# If LISTURL is not empty, makedist will add a note regarding
+# a web-browsable mailing list archive.
+LISTURL=http://lists.em.ca/ezmlm.cgi?#
+
+# Set MAKERPM to "true" if the tarball is to be built into a RPM.
+MAKERPM=true
+
+# Set NOARCH to "true" if there are no architecture dependant files
+# in the executable package
+NOARCH=false
+
+# Set DOCS to the list of files that should go into the "docs" directory
+# in the destination site.
+DOCS="README STATUS TODO"
+
+# Set EXTRAS to a list of any other extra files that should go into the
+# base directory in the destination site.
+EXTRAS=
+
+# Set EXTRAS_VER to a list of any other extra files that should go into
+# the version-numbered directory in the destination site.
+EXTRAS_VER="ANNOUNCEMENT"
+
+# Set EXTRAS_DIST to a list of other extra files that should go into the
+# distribution tarball.
+EXTRAS_DIST=
+
+# Set VERSION_BASE to the subdirectory into which the version-numbered
+# will be placed.
+VERSION_BASE=
+
+# Set WEBSITE to the name of the web site to copy the dist into
+# (all websites are in $HOME/websites) (required).
+WEBSITE=em.ca
+
+# Set WEBDIR to the "public_html" directory under $WEBSITE (required).
+WEBDIR=www
+
+# Set RPMUPLOAD to a list of additional "hostname/path" destinations to
+# which to upload the source and binary RPMs.
+RPMUPLOAD=
+
+# Set LIST to the mailing list(s) to send the announcement to (required).
+LIST=bgware@lists.em.ca,dns@list.cr.yp.to
+
+# Run any extra commands to prepare the source tree (such as making
+# documentation) here.
