@@ -12,10 +12,11 @@ struct sql_record
 {
   stralloc prefix;
   int type;
-  unsigned long ttl;
+  time_t ttl;
   char ip[4];
   unsigned long distance;
   stralloc name;
+  time_t timestamp;
 };
 typedef struct sql_record sql_record;
 

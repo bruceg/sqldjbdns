@@ -8,7 +8,8 @@
 #include "scan.h"
 #include "str.h"
 #include "strerr.h"
-#include <time.h>
+#include <sys/time.h>
+#include <unistd.h>
 #include "sqldns.h"
 
 sql_record sql_records[SQL_RECORD_MAX];
@@ -26,6 +27,7 @@ struct nameserver
 static char in_addr_arpa[] = "\7in-addr\4arpa";
 
 static unsigned random_offset;
+static struct timeval now;
 
 static unsigned nameserver_count;
 static struct nameserver nameservers[10];
@@ -101,9 +103,10 @@ static void parse_nameservers(void)
   
 void initialize(void)
 {
+#if 0
   char seed[128];
-  
   dns_random_init(seed);
+#endif
   parse_nameservers();
   sql_connect();
 }
@@ -189,7 +192,7 @@ static int response_PTR(char* q, unsigned long ttl, char* name)
 static int response_SOA(int authority)
 {
   unsigned long ttl = 2560;
-  unsigned long serial = time(0);
+  unsigned long serial = now.tv_sec;
   unsigned long refresh = 4096;
   unsigned long retry = 256;
   unsigned long expire = 65536;
@@ -264,6 +267,7 @@ static int query_forward(char* q)
   unsigned row;
   unsigned tuples;
   char* domain;
+  sql_record* rec;
   
   tuples = sql_select_entries(domain_id, &domain_prefix);
   if(!tuples) {
@@ -278,16 +282,38 @@ static int query_forward(char* q)
       if(!respond_nameservers(0)) return 0;
   }
 
+  /* Handle timestamps:
+   * if TTL=0, timestamp indicates when the record expires
+   * otherwise, timestamp indicates when the record should appear */
+  for(row = 0; row < tuples; row++) {
+    rec = sql_records + row;
+    if(rec->timestamp) {
+      if(rec->ttl) {
+	if(rec->timestamp > now.tv_sec)
+	  rec->type = 0;
+      }
+      else {
+	if(rec->timestamp <= now.tv_sec)
+	  rec->type = 0;
+	else {
+	  rec->ttl = rec->timestamp - now.tv_sec;
+	  if(rec->ttl > 3600) rec->ttl = 3600;
+	  if(rec->ttl < 2)    rec->ttl = 2;
+	}
+      }
+    }
+  }
+  
   if(lookup_A) {
     for(row = 0; row < tuples; row++) {
-      sql_record* rec = sql_records + (row + random_offset) % tuples;
+      rec = sql_records + (row + random_offset) % tuples;
       if(rec->type == DNS_NUM_A)
 	if(!response_A(q, rec->ttl, rec->ip, 0)) return 0;
     }
   }
   if(lookup_MX) {
     for(row = 0; row < tuples; row++) {
-      sql_record* rec = sql_records + (row + random_offset) % tuples;
+      rec = sql_records + (row + random_offset) % tuples;
       if(rec->type == DNS_NUM_MX) {
 	if(!dns_domain_join(&rec->name, &domain_name)) return 0;
 	if(!response_MX(q, rec->ttl, rec->distance, rec->name.s)) return 0;
@@ -381,7 +407,9 @@ int respond_additional(void)
 
 int respond(char *q, unsigned char qtype[2] /*, char srcip[4] */)
 {
-  random_offset = dns_random(~0U);
+  /* random_offset = dns_random(~0U); */
+  gettimeofday(&now, 0);
+  random_offset = now.tv_usec;
   
   lookup_A = 0;
   lookup_MX = 0;

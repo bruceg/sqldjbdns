@@ -157,7 +157,8 @@ unsigned sql_select_entries(unsigned long domain, stralloc* prefixes)
 
   rec = sql_records;
   for(i = rtuples = 0; i < tuples; i++) {
-    unsigned long ttl;
+    time_t ttl;
+    time_t timestamp = 0;
     
     if(!sql_fetch_stralloc(i, 0, &scratch)) return 0;
     if(!sql_fetch_ulong(i, 1, &ttl)) continue;
@@ -166,6 +167,7 @@ unsigned sql_select_entries(unsigned long domain, stralloc* prefixes)
       if(!stralloc_copy(&rec->prefix, &scratch)) return 0;
       rec->type = DNS_NUM_A;
       rec->ttl = ttl;
+      rec->timestamp = timestamp;
       ++rec;
       if(++rtuples > SQL_RECORD_MAX) break;
     }
@@ -174,6 +176,7 @@ unsigned sql_select_entries(unsigned long domain, stralloc* prefixes)
       rec->type = DNS_NUM_MX;
       rec->ttl = ttl;
       rec->distance = 1;
+      rec->timestamp = timestamp;
       ++rec;
       if(++rtuples > SQL_RECORD_MAX) break;
     }
@@ -182,6 +185,7 @@ unsigned sql_select_entries(unsigned long domain, stralloc* prefixes)
       rec->type = DNS_NUM_MX;
       rec->ttl = ttl;
       rec->distance = 2;
+      rec->timestamp = timestamp;
       ++rec;
       if(++rtuples > SQL_RECORD_MAX) break;
     }
